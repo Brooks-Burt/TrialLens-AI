@@ -26,11 +26,14 @@ from pathlib import Path
 from typing import Optional
 
 import anthropic
+from dotenv import load_dotenv
 
 # common/ is a sibling of enrich/ — add repo root so it's importable
 # without turning this into an installed package.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.ctgov_client import CTGovClient  # noqa: E402
+
+load_dotenv()  # reads .env in the repo root, sets ANTHROPIC_API_KEY into os.environ
 
 logger = logging.getLogger("traillens.query_planner")
 
