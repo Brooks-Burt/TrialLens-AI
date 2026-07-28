@@ -1,0 +1,25 @@
+{
+  "antifungals": {
+    "description": "Antifungal / anti-infective trials, seed therapeutic area",
+    "condition_terms": [
+      "candidiasis",
+      "aspergillosis",
+      "invasive fungal infection",
+      "cryptococcosis",
+      "mucormycosis",
+      "onychomycosis"
+    ],
+    "intervention_terms": [
+      "fluconazole",
+      "voriconazole",
+      "posaconazole",
+      "isavuconazole",
+      "amphotericin",
+      "echinocandin",
+      "caspofungin",
+      "micafungin",
+      "anidulafungin"
+    ],
+    "status_filter": null
+  }
+}
