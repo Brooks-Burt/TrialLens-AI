@@ -1,0 +1,19 @@
+# Data outputs — regenerable from ingest/normalize/enrich, not source
+data/raw/*.json
+data/*.db
+data/*.sqlite
+data/*.csv
+data/*.parquet
+
+# keep folder structure in git
+!data/raw/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# OS
+.DS_Store
