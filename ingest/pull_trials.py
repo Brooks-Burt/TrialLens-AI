@@ -17,13 +17,12 @@ import sys
 import time
 from pathlib import Path
 
-import requests
+# common/ is a sibling of ingest/ — add repo root so it's importable
+# without turning this into an installed package.
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common.ctgov_client import CTGovClient  # noqa: E402
 
-API_BASE = "https://clinicaltrials.gov/api/v2/studies"
 PAGE_SIZE = 100
-REQUEST_TIMEOUT = 30
-RETRY_ATTEMPTS = 3
-RETRY_BACKOFF_SECONDS = 2
 
 HERE = Path(__file__).parent
 DEFAULT_CONFIG_PATH = HERE / "query_config.json"
@@ -65,22 +64,6 @@ def build_params(spec: dict, page_token: str | None) -> dict:
     return params
 
 
-def fetch_page(params: dict) -> dict:
-    last_error = None
-    for attempt in range(1, RETRY_ATTEMPTS + 1):
-        try:
-            response = requests.get(API_BASE, params=params, timeout=REQUEST_TIMEOUT)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as exc:
-            last_error = exc
-            if attempt < RETRY_ATTEMPTS:
-                wait = RETRY_BACKOFF_SECONDS * attempt
-                print(f"  request failed ({exc}); retrying in {wait}s...")
-                time.sleep(wait)
-    raise RuntimeError(f"Failed to fetch page after {RETRY_ATTEMPTS} attempts: {last_error}")
-
-
 def extract_nct_id(study: dict) -> str:
     try:
         return study["protocolSection"]["identificationModule"]["nctId"]
@@ -104,6 +87,7 @@ def write_trial_json(study: dict, out_dir: Path, refresh: bool) -> str:
 def run(area: str, config_path: Path, out_dir: Path, refresh: bool, max_pages: int | None):
     spec = load_query_spec(area, config_path)
     out_dir.mkdir(parents=True, exist_ok=True)
+    client = CTGovClient()
 
     print(f"Area: {area}")
     print(f"Condition terms: {spec.get('condition_terms')}")
@@ -121,7 +105,7 @@ def run(area: str, config_path: Path, out_dir: Path, refresh: bool, max_pages: i
         page_num += 1
         params = build_params(spec, page_token)
         print(f"Fetching page {page_num}...")
-        data = fetch_page(params)
+        data = client.fetch_page(params)
 
         studies = data.get("studies", [])
         total_found += len(studies)
