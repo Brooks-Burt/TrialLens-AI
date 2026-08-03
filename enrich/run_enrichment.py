@@ -31,16 +31,14 @@ def get_trials_needing_enrichment(conn: sqlite3.Connection) -> list[dict]:
       - its latest materiality hash doesn't match the hash the current
         summary was generated against (flagged by the diff engine).
 
-    Adjust this query to your real `changes`/`summaries` schema. The
-    shape you want back is one row per trial-needing-work, with enough
-    registry fields inlined to build the trial dict summarize_trial()
-    expects.
+    Only three columns are needed. summarize_trial() is fed from raw_json,
+    not from individual registry columns, and normalize/build_db.py
+    guarantees raw_json is never null -- so nothing else in this table
+    is actually read downstream.
     """
     cursor = conn.execute(
         """
-        SELECT t.nct_id, t.title, t.phase, t.status, t.enrollment,
-               t.primary_completion_date, t.arms, t.primary_outcome_measures,
-               t.why_stopped, t.raw_json
+        SELECT t.nct_id, t.raw_json, t.materiality_hash
         FROM trials t
         LEFT JOIN summaries s ON s.nct_id = t.nct_id
         WHERE s.nct_id IS NULL
@@ -49,7 +47,6 @@ def get_trials_needing_enrichment(conn: sqlite3.Connection) -> list[dict]:
     )
     columns = [d[0] for d in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
-
 
 def write_summary(conn: sqlite3.Connection, nct_id: str, materiality_hash: str, summary: dict):
     conn.execute(
