@@ -12,16 +12,22 @@ import os
 import time
 
 import anthropic
+from dotenv import load_dotenv
 
-# Model tiering per the scope doc: Haiku for cheap extraction/classification
-# work (not used yet -- we don't have an extraction step today), Sonnet for
-# the four-section write-up and the landscape synthesis. Only move UP to a
-# bigger model if you have evidence Haiku/Sonnet underperforms on your data;
-# don't pre-optimize for quality you don't need yet.
+load_dotenv()
+
 MODEL_SUMMARY = "claude-sonnet-5"
 MODEL_LANDSCAPE = "claude-sonnet-5"
 
-client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+api_key = os.environ.get("ANTHROPIC_API_KEY")
+if not api_key:
+    raise RuntimeError(
+        "ANTHROPIC_API_KEY is not set. Add it to a .env file in the repo root, "
+        "or export it in your shell before running this script."
+    )
+
+client = anthropic.Anthropic(api_key=api_key)
+
 
 
 def _strip_json_fences(text: str) -> str:
