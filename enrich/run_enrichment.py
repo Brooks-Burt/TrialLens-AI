@@ -13,16 +13,16 @@ doc's schema sketch (trials, snapshots, changes, summaries). Point them
 at your actual schema before running -- this file will need small edits,
 that's expected.
 """
-
 import argparse
 import json
 import sqlite3
 import sys
+from pathlib import Path
 
 from summarize import summarize_trial
 
-DB_PATH = "data/trials.db"
-
+HERE = Path(__file__).parent
+DB_PATH = HERE.parent / "data" / "trials.db"
 
 def get_trials_needing_enrichment(conn: sqlite3.Connection) -> list[dict]:
     """
