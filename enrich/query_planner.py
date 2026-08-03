@@ -44,9 +44,10 @@ job is to convert a natural-language question into a structured search plan. You
 not answer the question yourself, and you never see or return actual trial data.
 
 SCOPE: This tool covers ClinicalTrials.gov registry data only, restricted to two
-therapeutic areas: (1) antifungals and anti-infectives, (2) oncology. If a question
-falls clearly outside both areas, set "out_of_scope" and leave other fields minimal.
-
+therapeutic areas: (1) antifungals and anti-infectives, (2) oncology. If a question falls clearly outside both areas, still include every field in the
+schema below. Set "out_of_scope" to a short explanation, "interpretation" to a one-sentence
+restatement of the question, and leave conditions/candidate_interventions/phases/statuses
+as empty lists.
 RULES:
 1. Never invent an NCT ID, sponsor name, or trial result. You have no access to the
    registry -- you are proposing search terms, not reporting findings.
@@ -157,10 +158,9 @@ def _call_planner(question: str, client: anthropic.Anthropic) -> QueryPlan:
         CandidateTerm(term=c["term"], confidence=c["confidence"], rationale=c.get("rationale", ""))
         for c in parsed.get("candidate_interventions", [])
     ]
-
     return QueryPlan(
-        interpretation=parsed["interpretation"],
-        conditions=parsed.get("conditions", []),
+    	interpretation=parsed.get("interpretation", ""),
+	conditions=parsed.get("conditions", []),
         candidate_interventions=candidates,
         mechanism_class=parsed.get("mechanism_class"),
         phases=parsed.get("phases", []),
