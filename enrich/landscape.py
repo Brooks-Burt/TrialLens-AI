@@ -11,10 +11,13 @@ missing via summarize.py first).
 """
 
 import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 from client import call_claude, MODEL_LANDSCAPE
 from prompts import LANDSCAPE_SYSTEM, LANDSCAPE_USER_TEMPLATE
-
 
 def synthesize_landscape(user_query: str, trials_with_summaries: list[dict]) -> str:
     """

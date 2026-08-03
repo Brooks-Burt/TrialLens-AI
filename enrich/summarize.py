@@ -13,6 +13,14 @@ you already have the `changes` table.
 """
 
 import json
+import sys
+from pathlib import Path
+
+# Guarantee this file's own folder is on the path, regardless of what
+# script originally launched Python. Without this, importing summarize.py
+# from outside enrich/ (view/, cli/, a test file, a REPL started elsewhere)
+# fails to find client.py and prompts.py.
+sys.path.insert(0, str(Path(__file__).parent))
 
 from client import call_claude, MODEL_SUMMARY
 from prompts import TRIAL_SUMMARY_SYSTEM, TRIAL_SUMMARY_USER_TEMPLATE
