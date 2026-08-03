@@ -62,7 +62,9 @@ RULES:
    lower-confidence supplementary term.
 5. Interpretation must be one plain sentence a non-scientist could read and immediately
    understand what will be searched for and why.
-6. Output strict JSON matching the schema below. No prose outside the JSON.
+6. Output strict JSON matching the schema below. No prose outside the JSON, and no
+   markdown code fences (no ```json or ``` of any kind) — output must start with {
+   and end with } and nothing else.
 
 SCHEMA:
 {
@@ -118,6 +120,22 @@ class ValidatedQuery:
     term_audit: list[CandidateTerm] = field(default_factory=list)  # full trail for logging/demo
 
 
+def _strip_code_fences(text: str) -> str:
+    """
+    Models sometimes wrap JSON in ```json ... ``` even when told not to.
+    Strip a leading/trailing fence if present, rather than trusting the
+    prompt alone to prevent it.
+    """
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[: -3]
+        elif "```" in text:
+            text = text.rsplit("```", 1)[0]
+    return text.strip()
+
+
 def _call_planner(question: str, client: anthropic.Anthropic) -> QueryPlan:
     response = client.messages.create(
         model=PLANNER_MODEL,
@@ -127,6 +145,7 @@ def _call_planner(question: str, client: anthropic.Anthropic) -> QueryPlan:
     )
 
     raw_text = "".join(block.text for block in response.content if block.type == "text")
+    raw_text = _strip_code_fences(raw_text)
 
     try:
         parsed = json.loads(raw_text)
@@ -242,9 +261,14 @@ if __name__ == "__main__":
     # Hits both the Anthropic API and the live CT.gov API — needs
     # ANTHROPIC_API_KEY set, and network access to clinicaltrials.gov.
     logging.basicConfig(level=logging.INFO)
+
+    default_question = "what's competing with rezafungin in refractory candidemia?"
+    question = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else default_question
+
     result = build_query(
-        "what's competing with rezafungin in refractory candidemia?",
+        question,
         anthropic.Anthropic(),
         CTGovClient(),
     )
-    print(json.dumps(result.__dict__, default=lambda o: o.__dict__, indent=2))
+
+print(json.dumps(result.__dict__, default=lambda o: o.__dict__, indent=2))
