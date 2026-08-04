@@ -159,8 +159,8 @@ def _call_planner(question: str, client: anthropic.Anthropic) -> QueryPlan:
         for c in parsed.get("candidate_interventions", [])
     ]
     return QueryPlan(
-    	interpretation=parsed.get("interpretation", ""),
-	conditions=parsed.get("conditions", []),
+        interpretation=parsed.get("interpretation", ""),
+    conditions=parsed.get("conditions", []),
         candidate_interventions=candidates,
         mechanism_class=parsed.get("mechanism_class"),
         phases=parsed.get("phases", []),
@@ -270,5 +270,4 @@ if __name__ == "__main__":
         anthropic.Anthropic(),
         CTGovClient(),
     )
-
-print(json.dumps(result.__dict__, default=lambda o: o.__dict__, indent=2))
+    print(json.dumps(result.__dict__, default=lambda o: o.__dict__, indent=2))
