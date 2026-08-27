@@ -9,13 +9,13 @@ guardrails.**
 ## The problem
 
 A competitive intelligence analyst tracking a therapeutic area has two bad
-options. Read ClinicalTrials.gov by hand — thousands of records, most of them
+options. Read ClinicalTrials.gov by hand, thousands of records, most of them
 unchanged, the interesting ones buried. Or hand the whole thing to a language
 model and hope it doesn't invent a drug that has never existed.
 
 TrialLens takes a third path: deterministic Python decides *what* is worth
 looking at, and Claude is used only for the two things it is actually better
-at than code — writing a readable summary of a dense registry record, and
+at than code, writing a readable summary of a dense registry record, and
 translating a plain-English question into the right search terms. Every term
 the model proposes is checked against the live registry before it is allowed
 to run.
