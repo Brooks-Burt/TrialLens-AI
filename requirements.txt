@@ -1,4 +1,10 @@
 requests>=2.31
 anthropic>=0.40
 python-dotenv>=1.0
-streamlit>=1.38
+
+# Upper bound is deliberate, not lazy. view/app.py uses
+# `use_container_width=` on buttons, which Streamlit has deprecated in
+# favour of `width=`. It still works today and only warns, but pinning
+# below the next major release means a `pip install -r requirements.txt`
+# six months from now can't silently turn a warning into a TypeError.
+streamlit>=1.38,<2.0
