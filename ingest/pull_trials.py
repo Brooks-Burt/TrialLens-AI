@@ -54,6 +54,25 @@ until the scope widened.
    narrower corpus.
 
 
+4. Pathogens are not condition labels.
+   Found empirically, not by reading docs. The first antifungal run queried
+   20 species-level organisms against the condition field: 6 returned
+   exactly zero, and the survivors returned 3-4 trials each (C. auris 3,
+   A. fumigatus 4, Rhizopus 3). The only two with real counts were
+   C. albicans and C. neoformans, which are effectively synonyms for how
+   their syndrome is already labelled.
+
+   The clustering is the finding. CT.gov indexes conditions by SYNDROME --
+   "Invasive Candidiasis", "Candidemia" -- not by organism. Eight dead
+   terms were one design error with eight symptoms, not eight typos, and
+   exempting them via known_zero would have hidden that.
+
+   Pathogen is still a first-class retrieval criterion and the landscape's
+   y-axis. What changed is the mechanism: it is DERIVED from trial text by
+   normalize/pathogens.py and stored with provenance, rather than used to
+   select the corpus.
+
+
 ON QUERY VOLUME, AND WHY THE CAP CHANGED MEANING
 ================================================
 
@@ -74,11 +93,10 @@ claim. With no cap at all, completeness would be an assumption -- and an
 assumption is not something you can state to someone who asks how you know.
 
 Two controls remain, both visible in the run summary:
-  - Condition and pathogen queries carry a study-type filter
-    (interventional only), so observational cohorts and registries never
-    enter the corpus. They are real data but they are not programs, and
-    they would inflate every count. Intervention queries are specific
-    enough not to need the filter.
+  - Condition queries carry a study-type filter (interventional only), so
+    observational cohorts and registries never enter the corpus. They are
+    real data but they are not programs, and they would inflate every
+    count. Intervention queries are specific enough not to need the filter.
   - --sort decides WHICH results a capped term keeps. Unspecified order is
     not neutral when terms cap: it lets CT.gov's default silently choose the
     corpus. See DEFAULT_SORT.
@@ -140,8 +158,8 @@ DEFAULT_MAX_PER_TERM = 2000
 # development landscape even though it sounds like a freshness sort.
 DEFAULT_SORT = "StartDate:desc"
 
-# Applied to condition and pathogen queries only. Interventional studies of
-# drugs or biologics -- which is what a development landscape is about.
+# Applied to condition queries only. Interventional studies of drugs or
+# biologics -- which is what a development landscape is about.
 # Observational cohorts, registries, and expanded-access records are real
 # data but they are not programs, and including them would inflate every
 # count the dashboard reports.
@@ -257,9 +275,16 @@ def build_term_queries(area: str, spec: dict, sort: str = DEFAULT_SORT) -> list[
     study_filters = spec.get("study_filters", DEFAULT_STUDY_FILTERS)
     queries: list[dict] = []
 
+    # Two query groups, not three. `pathogen_lexicon` is deliberately NOT
+    # queried here -- see the pathogen_lexicon note in query_config.json.
+    # Briefly: the first antifungal dry run queried 20 species-level
+    # pathogens against the condition field and 6 returned zero while the
+    # survivors returned 3-4 trials each, because CT.gov indexes conditions
+    # by SYNDROME ("Invasive Candidiasis") and not by organism. Pathogen is
+    # still a first-class retrieval criterion; it is derived from trial text
+    # by normalize/pathogens.py instead of selecting the corpus.
     for group, field, terms, filtered in (
         ("condition", "query.cond", spec.get("condition_terms", []), True),
-        ("pathogen", "query.cond", spec.get("pathogen_terms", []), True),
         ("intervention", "query.intr", spec.get("intervention_terms", []), False),
     ):
         for term in terms or []:

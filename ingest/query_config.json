@@ -1,27 +1,18 @@
 {
   "_README": {
     "purpose": "Ingest queries, one entry per therapeutic area. Read by ingest/pull_trials.py to build CT.gov API v2 queries, and by tests/test_coverage.py to verify every term actually returns trials.",
-
     "scope_decision": "v2 covers ONE therapeutic area completely rather than three by sample. The earlier plan was all anti-infectives, justified as resolving v1 bug #6 by widening the data to match what the planner prompt already claimed. Narrowing the prompt to match the data resolves that bug equally well -- the requirement was only ever that stated scope and actual coverage agree -- and it buys three things widening did not: (1) counts become totals instead of lower bounds, which is what 'most crowded indication' depends on to mean anything; (2) the hand-curated asset alias dictionary drops from 150+ compounds to roughly 25-30, making it reviewable rather than aspirational; (3) the corpus is small enough to commit as a demo snapshot. antibacterials and antivirals stay in this file with enabled:false so the narrowing is visible and reversible rather than deleted.",
-
     "enabled": "Only areas with enabled:true are ingested by --area all, and only those are enforced by tests/test_coverage.py. A disabled area is a recorded intention, not a claim of coverage. The query planner's scope prompt must be derived from the ENABLED areas -- deriving it from this file's keys is how v1 bug #6 happened.",
-
     "combine": "'or' issues SEPARATE queries per term group and unions the results. 'and' requires a trial to match both groups in one query, which is what v1 did. v2 uses 'or' -- see why_or_not_and.",
-
     "why_or_not_and": "v1 sent query.cond AND query.intr in a single request, so a trial had to match both a listed condition AND a listed intervention to be ingested at all. That systematically excluded every trial whose intervention is a development code rather than a known drug name -- APX001, F901318, SCY-078. Those are novel assets, the single most competitively interesting rows in a landscape view. v1's ingest was quietly filtering out the trials the tool exists to find. v2 casts a wide net at ingest (recall) and does precision work in retrieve/ via structured scoring.",
-
-    "pathogen_terms": "Queried against the condition field alongside condition_terms, but tracked separately because pathogen is a first-class retrieval criterion in anti-infectives, not a synonym for indication. Two trials both labelled 'pneumonia' can be in unrelated competitive markets depending on organism and resistance profile. See docs/SCOPE-v2.md correction #5.",
-
     "why_no_febrile_neutropenia": "Empiric and prophylactic antifungal therapy is largely studied in febrile neutropenia, so it looks like an obvious condition term. It is deliberately absent. With the interventional filter it still returns well over a thousand trials that are mostly antibacterial, G-CSF, and supportive care -- and because this area is now meant to be COMPLETE rather than sampled, corpus pollution directly corrupts the 'N relevant trials' and crowding counts the dashboard reports. Antifungal prophylaxis trials are reached through the intervention terms (fluconazole, posaconazole, micafungin) instead, which is both more precise and correctly attributed.",
-
-    "known_zero": "Terms verified to return zero, kept with a written reason. Enforced by tests/test_coverage.py, which requires a real explanation rather than allowing a silent exemption. Deleting a zero-hit term destroys the evidence that the question was asked; downgrading the assertion to a warning means nobody reads it."
+    "known_zero": "Terms verified to return zero, kept with a written reason. Enforced by tests/test_coverage.py, which requires a real explanation rather than allowing a silent exemption. Deleting a zero-hit term destroys the evidence that the question was asked; downgrading the assertion to a warning means nobody reads it.",
+    "pathogen_lexicon": "Organisms. NOT queried at ingest -- this is a lexicon, not a term list, and the distinction was learned empirically. The first antifungal dry run queried 20 species-level pathogens against the condition field and 6 returned exactly zero, while the survivors returned almost nothing (C. auris 3, A. fumigatus 4, Rhizopus 3). The only two with real counts, C. albicans and C. neoformans, are effectively synonyms for how their syndrome is already labelled. The pattern is the finding: CT.gov does not index conditions at species level. Trials label the SYNDROME ('Invasive Candidiasis', 'Candidemia'), not the organism. So 8 dead terms were one design error with eight symptoms, not eight typos -- and exempting them via known_zero would have papered over it. Pathogen remains a first-class retrieval criterion and the landscape's y-axis (see docs/SCOPE-v2.md correction #5); what changed is that it is DERIVED by matching this lexicon against trial text -- title, conditions, brief summary, eligibility, outcome measures -- and stored in attribute_provenance with the matched span, rather than being used to select the corpus. Consumer: normalize/pathogens.py."
   },
-
   "antifungals": {
     "description": "Antifungal trials. The single enabled area in v2, covered completely rather than sampled -- run with a high --max-per-term so the run summary can report zero capped terms, which is what makes completeness a verified claim instead of an assumption.",
     "enabled": true,
     "combine": "or",
-
     "condition_terms": [
       "candidiasis",
       "invasive candidiasis",
@@ -58,30 +49,6 @@
       "fungal sinusitis",
       "mycetoma"
     ],
-
-    "pathogen_terms": [
-      "Candida auris",
-      "Candida albicans",
-      "Candida glabrata",
-      "Nakaseomyces glabratus",
-      "Candida parapsilosis",
-      "Candida tropicalis",
-      "Candida krusei",
-      "Aspergillus fumigatus",
-      "Aspergillus flavus",
-      "Cryptococcus neoformans",
-      "Pneumocystis jirovecii",
-      "Rhizopus",
-      "Mucorales",
-      "Fusarium",
-      "Scedosporium",
-      "Trichophyton rubrum",
-      "Histoplasma capsulatum",
-      "Coccidioides immitis",
-      "Talaromyces marneffei",
-      "Malassezia"
-    ],
-
     "intervention_terms": [
       "fluconazole",
       "itraconazole",
@@ -116,14 +83,95 @@
       "tavaborole",
       "nikkomycin"
     ],
-
     "known_zero": {
-      "pathogen/Candida glabrata": "Returned zero interventional trials on the condition field in the first dry run. Two candidate explanations, and the config now tests both rather than assuming either: (a) the species was reclassified as Nakaseomyces glabratus in 2022, so registry indexing may have moved -- that term is queried alongside this one, and hits on it confirm the rename as the cause; (b) interventional trials label the condition at genus or syndrome level ('Candidiasis', 'Invasive Candidiasis') rather than naming this species, consistent with C. albicans returning hits mainly via vulvovaginal candidiasis trials where the species IS named. Kept because it costs one request, would begin matching the moment a trial labels it, and removing it would delete the record that the question was asked."
+      "condition/candiduria": "Zero interventional trials, confirmed by dry run. A real clinical entity, but asymptomatic candiduria is explicitly NOT recommended for treatment by IDSA guidance, so there is little to randomise and essentially no interventional literature. Kept because it costs one request and would begin matching the moment a trial appears; removing it would delete the record that the question was asked.",
+      "condition/fungal endophthalmitis": "Zero interventional trials, confirmed by dry run. Managed with intravitreal therapy and vitrectomy largely on case-series evidence rather than randomised trials, so a genuine absence rather than a typo. Kept for the same reason as candiduria: one request, and it starts matching if the literature changes."
     },
-
-    "status_filter": null
+    "status_filter": null,
+    "pathogen_lexicon": [
+      "Candida auris",
+      "Candida albicans",
+      "Candida glabrata",
+      "Nakaseomyces glabratus",
+      "Candida parapsilosis",
+      "Candida tropicalis",
+      "Candida krusei",
+      "Aspergillus fumigatus",
+      "Aspergillus flavus",
+      "Cryptococcus neoformans",
+      "Pneumocystis jirovecii",
+      "Rhizopus",
+      "Mucorales",
+      "Fusarium",
+      "Scedosporium",
+      "Trichophyton rubrum",
+      "Histoplasma capsulatum",
+      "Coccidioides immitis",
+      "Talaromyces marneffei",
+      "Malassezia"
+    ],
+    "relevance_signals": {
+      "_note": "Substring stems matched case-insensitively against title, conditions, keywords, brief summary, and intervention names+descriptions. A trial with no match is QUARANTINED by normalize/relevance.py -- flagged in the DB with its reason, never deleted. Needed because CT.gov's query.cond does semantic term expansion rather than exact matching, so an ingest query is inherently fuzzy: 'Candida albicans' returned red yeast rice cholesterol trials, HPV vaccines, and neuroblastoma beta-glucan studies. Measured pollution on the first full antifungal corpus was 8.7% (215 of 2470).",
+      "disease_stems": [
+        "candid",
+        "aspergill",
+        "crypto",
+        "mycos",
+        "mycot",
+        "myceto",
+        "fung",
+        "tinea",
+        "onychomyc",
+        "mucor",
+        "rhizop",
+        "fusari",
+        "scedospor",
+        "lomentospor",
+        "histoplasm",
+        "coccidioid",
+        "blastomyc",
+        "sporotrich",
+        "talaromyc",
+        "paracoccidioid",
+        "pneumocystis",
+        "dermatophyt",
+        "malassezia",
+        "trichophyt",
+        "microspor",
+        "epidermophyt",
+        "chromoblastomyc",
+        "phaeohyphomyc",
+        "pityriasis versicolor",
+        "thrush"
+      ],
+      "drug_stems": [
+        "azole",
+        "fungin",
+        "amphotericin",
+        "terbinafin",
+        "butenafin",
+        "griseofulvin",
+        "flucytosin",
+        "nystatin",
+        "natamycin",
+        "ciclopirox",
+        "tavaborole",
+        "olorofim",
+        "fosmanogepix",
+        "ibrexafungerp",
+        "nikkomycin",
+        "atovaquone",
+        "pentamidine",
+        "trimethoprim-sulfamethoxazole",
+        "cotrimoxazole",
+        "sulfamethoxazole",
+        "dapsone",
+        "primaquine"
+      ],
+      "_why_pcp_drugs": "atovaquone, pentamidine, TMP-SMX, dapsone and primaquine are here because Pneumocystis jirovecii IS a fungus and these are its actual therapies. Omitting them flagged real PCP prophylaxis trials as pollution -- NCT00000794 (atovaquone + pyrimethamine) was a false positive in the first audit pass. Recording this because it is the kind of domain fact that makes a generic relevance filter wrong in a way only someone in the area would notice.",
+      "_why_not_yeast": "'yeast' is deliberately NOT a signal. It is the single biggest false friend in this corpus: red yeast rice (statin-alternative cholesterol trials), selenium yeast, and yeast fermentate supplements together accounted for dozens of polluting matches. Same for bare 'glucan' -- beta-glucan is an immunostimulant in oncology trials, and beta-D-glucan the fungal diagnostic would be caught by 'fung' in surrounding text anyway."
+    }
   },
-
   "antibacterials": {
     "description": "DISABLED in v2. Retained so the scope narrowing is visible and reversible. Enabling this requires extending normalize/asset_aliases.json to cover these compounds AND widening the query planner's scope prompt in the same change -- doing one without the other is v1 bug #6.",
     "enabled": false,
@@ -147,22 +195,6 @@
       "osteomyelitis",
       "prosthetic joint infection",
       "bacterial endocarditis"
-    ],
-    "pathogen_terms": [
-      "Acinetobacter baumannii",
-      "Pseudomonas aeruginosa",
-      "Klebsiella pneumoniae",
-      "Staphylococcus aureus",
-      "methicillin-resistant Staphylococcus aureus",
-      "Escherichia coli",
-      "Enterococcus faecium",
-      "Enterobacter",
-      "Stenotrophomonas maltophilia",
-      "Mycobacterium tuberculosis",
-      "Mycobacterium abscessus",
-      "Neisseria gonorrhoeae",
-      "Clostridioides difficile",
-      "carbapenem-resistant Enterobacterales"
     ],
     "intervention_terms": [
       "vancomycin",
@@ -194,9 +226,24 @@
       "delamanid",
       "rifapentine"
     ],
-    "status_filter": null
+    "status_filter": null,
+    "pathogen_lexicon": [
+      "Acinetobacter baumannii",
+      "Pseudomonas aeruginosa",
+      "Klebsiella pneumoniae",
+      "Staphylococcus aureus",
+      "methicillin-resistant Staphylococcus aureus",
+      "Escherichia coli",
+      "Enterococcus faecium",
+      "Enterobacter",
+      "Stenotrophomonas maltophilia",
+      "Mycobacterium tuberculosis",
+      "Mycobacterium abscessus",
+      "Neisseria gonorrhoeae",
+      "Clostridioides difficile",
+      "carbapenem-resistant Enterobacterales"
+    ]
   },
-
   "antivirals": {
     "description": "DISABLED in v2. Retained so the scope narrowing is visible and reversible. Same enabling conditions as antibacterials.",
     "enabled": false,
@@ -219,21 +266,6 @@
       "dengue",
       "mpox",
       "rabies"
-    ],
-    "pathogen_terms": [
-      "influenza A virus",
-      "influenza B virus",
-      "SARS-CoV-2",
-      "respiratory syncytial virus",
-      "human metapneumovirus",
-      "hepatitis B virus",
-      "hepatitis C virus",
-      "HIV-1",
-      "cytomegalovirus",
-      "varicella zoster virus",
-      "herpes simplex virus",
-      "BK polyomavirus",
-      "Epstein-Barr virus"
     ],
     "intervention_terms": [
       "oseltamivir",
@@ -268,6 +300,21 @@
       "brincidofovir",
       "tecovirimat"
     ],
-    "status_filter": null
+    "status_filter": null,
+    "pathogen_lexicon": [
+      "influenza A virus",
+      "influenza B virus",
+      "SARS-CoV-2",
+      "respiratory syncytial virus",
+      "human metapneumovirus",
+      "hepatitis B virus",
+      "hepatitis C virus",
+      "HIV-1",
+      "cytomegalovirus",
+      "varicella zoster virus",
+      "herpes simplex virus",
+      "BK polyomavirus",
+      "Epstein-Barr virus"
+    ]
   }
 }

@@ -37,7 +37,9 @@ from pathlib import Path
 # imports resolve the same way regardless of where you run this from.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common.paths import DB_PATH, RAW_DIR, RAW_MANIFEST_PATH, SCHEMA_PATH  # noqa: E402
+from common.paths import QUERY_CONFIG_PATH  # noqa: E402
 from normalize.compact import compact_study  # noqa: E402
+from normalize.relevance import assess, build_signal_pattern  # noqa: E402
 from normalize.materiality import compute_materiality_hash, dig  # noqa: E402
 
 DEFAULT_RAW_DIR = RAW_DIR
@@ -247,6 +249,51 @@ def record_snapshot(
     return True
 
 
+def upsert_relevance(
+    conn: sqlite3.Connection,
+    nct_id: str,
+    areas: dict[str, list[str]],
+    study: dict,
+    patterns: dict,
+    now: str,
+) -> tuple[int, int]:
+    """
+    Record the corpus precision verdict per (trial, area).
+
+    Re-assessed on every build rather than written once, because the signal
+    lexicon in query_config.json is expected to be edited -- adding the PCP
+    drugs corrected 22 false positives in the first pass. A verdict cached
+    against an older lexicon would quietly keep a trial quarantined after
+    the reason for quarantining it had been fixed.
+
+    Returns (relevant, quarantined) counts for this trial.
+    """
+    relevant = quarantined = 0
+    for area in areas:
+        pattern = patterns.get(area)
+        result = assess(study, pattern)
+
+        conn.execute(
+            """
+            INSERT INTO trial_relevance
+                (nct_id, therapeutic_area, verdict, matched_signals, reason, assessed_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(nct_id, therapeutic_area) DO UPDATE SET
+                verdict         = excluded.verdict,
+                matched_signals = excluded.matched_signals,
+                reason          = excluded.reason,
+                assessed_at     = excluded.assessed_at
+            """,
+            (nct_id, area, result["verdict"], json.dumps(result["matched"]),
+             result["reason"], now),
+        )
+        if result["verdict"] == "relevant":
+            relevant += 1
+        else:
+            quarantined += 1
+    return relevant, quarantined
+
+
 def upsert_trial(
     conn: sqlite3.Connection,
     row: dict,
@@ -332,6 +379,15 @@ def run(
 ):
     manifest = load_manifest(manifest_path)
 
+    # Compiled once per run, not once per trial: 2,500 trials x one regex
+    # compile each is pure waste, and the pattern cannot change mid-run.
+    area_config = json.loads(QUERY_CONFIG_PATH.read_text())
+    patterns = {
+        area: build_signal_pattern(spec)
+        for area, spec in area_config.items()
+        if not area.startswith("_")
+    }
+
     files = sorted(p for p in raw_dir.glob("*.json") if not p.name.startswith("_"))
 
     if only_area:
@@ -380,6 +436,8 @@ def run(
     unmanifested = 0
     stored_bytes = 0
     full_bytes = 0
+    rel_ok = 0
+    rel_quar = 0
     changed_ids: list[str] = []
 
     for path in files:
@@ -429,6 +487,11 @@ def run(
                     conn, row, materiality_hash, stored_json, legacy_area, now
                 )
                 area_rows += upsert_trial_areas(conn, row["nct_id"], areas, now)
+                ok, quar = upsert_relevance(
+                    conn, row["nct_id"], areas, study, patterns, now
+                )
+                rel_ok += ok
+                rel_quar += quar
                 if record_snapshot(conn, row, materiality_hash, now):
                     snapshots += 1
 
@@ -488,6 +551,13 @@ def run(
     print(f"Rows in db:      {total_rows}")
     print(f"Area rows added: {area_rows}")
     print(f"Snapshots added: {snapshots}  (only trials whose hash moved)")
+
+    if rel_ok or rel_quar:
+        total = rel_ok + rel_quar
+        print(f"Relevance:       {rel_ok} relevant, {rel_quar} quarantined "
+              f"({100 * rel_quar / total:.1f}% off-target)")
+        print("                 Quarantined trials are kept and flagged, never")
+        print("                 deleted. See normalize/relevance.py for why.")
 
     if full_bytes:
         saved = 100 * (full_bytes - stored_bytes) / full_bytes

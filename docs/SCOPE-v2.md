@@ -624,6 +624,91 @@ keeps working against the same database.
 
 ---
 
+## What the first real ingest taught us
+
+Two findings that no amount of design review would have produced, both from
+running the thing against live data. Recorded here because they changed the
+architecture, not just the config.
+
+### 1. CT.gov does not index conditions at species level
+
+The antifungal config queried 20 species-level organisms against the
+condition field. Six returned **exactly zero**, and the survivors returned
+almost nothing:
+
+```
+Candida albicans          134      Rhizopus                   3
+Cryptococcus neoformans    57      Coccidioides immitis       2
+Pneumocystis jirovecii     17      Histoplasma capsulatum     1
+Malassezia                  9      Aspergillus flavus         0
+Fusarium                    7      Candida glabrata           0
+Mucorales                   5      Candida krusei             0
+Scedosporium                5      Candida parapsilosis       0
+Aspergillus fumigatus       4      Candida tropicalis         0
+Trichophyton rubrum         4      Nakaseomyces glabratus     0
+Candida auris               3
+```
+
+The clustering is the finding. Trials label the **syndrome** — "Invasive
+Candidiasis", "Candidemia" — not the organism. Eight dead terms were *one
+design error with eight symptoms*, not eight typos, and exempting them
+through `known_zero` would have hidden that.
+
+Correction #5 still stands on substance: pathogen is a first-class
+retrieval criterion and the landscape's y-axis. What was wrong was the
+mechanism. Pathogen is now a **lexicon matched against trial text**
+(`pathogen_lexicon`), derived by `normalize/pathogens.py` and stored in
+`attribute_provenance` with the matched span — not a corpus-selection query.
+
+### 2. The registry's search is semantic, so the corpus needs a precision audit
+
+`query.cond` performs term **expansion**, not exact matching, and quoting a
+phrase does not make it exact. Which means every ingest query is inherently
+fuzzy, and the corpus contains trials nobody asked for:
+
+| Query | Also returned |
+|---|---|
+| `"Candida albicans"` | Red yeast rice cholesterol trials, HPV-16/18 vaccine immunogenicity, neuroblastoma beta-glucan studies, and *C. albicans* used as a **skin-test antigen** for neurogenic inflammation |
+| `"pneumocystis pneumonia"` | Toxoplasmosis / pyrimethamine trials — a protozoan, not a fungus |
+| `"coccidioidomycosis"` | 22 unrelated trials |
+
+Measured on the first complete corpus: **193 of 2,470 trials (7.8%) had no
+fungal signal anywhere** in title, conditions, keywords, summary,
+interventions, or outcomes.
+
+This matters more than tidiness, because every headline number is a count
+over this corpus. "27 relevant trials", "14 companies", "most crowded
+indication" are all wrong if one trial in thirteen is a statin-intolerance
+study — and wrong in the confident, specific-looking way that survives a
+demo until someone who knows the field reads a row.
+
+So `tests/test_coverage.py` (recall: did every term find trials?) is now
+paired with `normalize/relevance.py` (precision: is what we found actually
+on topic?). Flagged trials are **quarantined, not deleted** — the lexicon is
+a heuristic, and the first pass wrongly flagged an atovaquone/pyrimethamine
+PCP trial because the lexicon lacked PCP drugs even though *Pneumocystis*
+is a fungus. Deleting on a heuristic's word makes that error class
+unrecoverable and invisible. Keeping the rows also makes the quarantine rate
+a reportable metric, and "7.8% was off-target, here it is" is a stronger
+claim than a corpus that silently looks clean.
+
+### Corpus as built
+
+```
+trials             2,470      DB file    29.4 MB (committable)
+  relevant         2,277      stored JSON 53% smaller than raw
+  quarantined        193      terms capped: 0 of 86
+```
+
+Zero capped terms is what makes completeness a verified claim rather than
+an assumption. Phase distribution of the relevant set: 745 Phase 1, 327
+Phase 2, 302 Phase 3, 80 Phase 1/2, 50 Phase 2/3. Top sponsors are Pfizer,
+NIAID, Merck, Boehringer Ingelheim, and Astellas — which is a domain sanity
+check passing, since those are exactly the fluconazole/voriconazole,
+Mycoses Study Group, caspofungin, and micafungin franchises.
+
+---
+
 ## Bugs found while implementing v2
 
 Same convention as the v1 scope doc's bug table, and the same argument for

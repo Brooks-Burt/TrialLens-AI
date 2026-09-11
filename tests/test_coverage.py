@@ -52,11 +52,24 @@ from unittest import SkipTest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common.paths import QUERY_CONFIG_PATH, RAW_MANIFEST_PATH  # noqa: E402
 
+# Only groups that ingest actually QUERIES belong here, because every
+# coverage assertion in this file is "did this term return trials?" -- a
+# question that is meaningless for a term no query ever ran.
+#
+# pathogen_lexicon is excluded for that reason. It used to be a queried
+# group; the first antifungal dry run showed CT.gov does not index
+# conditions at species level (6 of 20 organisms returned zero, survivors
+# returned 3-4 trials each), so pathogens became a lexicon matched against
+# trial text instead. Leaving it here would have produced 20 permanently
+# failing assertions and the honest fix would have been to delete them,
+# which is how a suite stops being trusted.
 TERM_GROUPS = {
     "condition_terms": "condition",
-    "pathogen_terms": "pathogen",
     "intervention_terms": "intervention",
 }
+
+# Validated for shape, not for hit counts.
+LEXICON_KEYS = ("pathogen_lexicon",)
 
 # unittest.SkipTest is used rather than an early `return` for the
 # manifest-dependent tests, and rather than pytest.skip so the file runs
@@ -158,6 +171,68 @@ def test_config_parses_and_has_required_fields():
         "every coverage test would skip, so the suite would report success "
         "while checking no data at all."
     )
+
+
+def test_lexicons_are_well_formed():
+    """
+    Lexicon entries are validated for SHAPE only -- never for hit counts.
+
+    This is the distinction the pathogen finding forced. A queried term can
+    be wrong in a way the registry will tell you about (zero hits). A
+    lexicon entry cannot: it is matched against trial text downstream, so
+    "does CT.gov return anything for this string?" is not a question that
+    has meaning here. Asserting hits on a lexicon is how you end up with 20
+    permanently red assertions and a suite nobody trusts.
+
+    What CAN be checked is that entries are clean, unique strings -- a
+    duplicate double-counts a pathogen in the landscape, and stray
+    whitespace breaks the text match silently.
+    """
+    config = load_config()
+    problems = []
+
+    for area, spec in config.items():
+        for key in LEXICON_KEYS:
+            entries = spec.get(key)
+            if entries is None:
+                continue
+            if not isinstance(entries, list):
+                problems.append(f"{area}/{key}: expected a list, got {type(entries).__name__}")
+                continue
+
+            seen = set()
+            for entry in entries:
+                if not isinstance(entry, str) or not entry.strip():
+                    problems.append(f"{area}/{key}: bad entry {entry!r}")
+                    continue
+                if entry != entry.strip():
+                    problems.append(f"{area}/{key}: {entry!r} has surrounding whitespace")
+                folded = entry.lower()
+                if folded in seen:
+                    problems.append(f"{area}/{key}: duplicate {entry!r}")
+                seen.add(folded)
+
+    assert not problems, "Lexicon problems:\n  " + "\n  ".join(problems)
+
+
+def test_lexicon_terms_are_not_also_queried():
+    """
+    A string in both a queried term list and a lexicon means the pathogen
+    mistake is creeping back: it would select the corpus AND be derived from
+    text, double-counting the trial's attribution and reintroducing exactly
+    the species-level condition queries that returned zero.
+    """
+    config = load_config()
+    problems = []
+
+    for area, spec in config.items():
+        queried = {t.strip().lower() for _, _, t in iter_terms({area: spec})}
+        for key in LEXICON_KEYS:
+            for entry in spec.get(key) or []:
+                if isinstance(entry, str) and entry.strip().lower() in queried:
+                    problems.append(f"{area}: {entry!r} is in both {key} and a queried term list")
+
+    assert not problems, "Lexicon/term overlap:\n  " + "\n  ".join(problems)
 
 
 def test_no_duplicate_terms_within_an_area():
@@ -392,6 +467,8 @@ def main() -> int:
         test_config_parses_and_has_required_fields,
         test_no_duplicate_terms_within_an_area,
         test_terms_are_clean_strings,
+        test_lexicons_are_well_formed,
+        test_lexicon_terms_are_not_also_queried,
         test_manifest_exists,
         test_every_configured_term_was_queried,
         test_no_dead_terms,
