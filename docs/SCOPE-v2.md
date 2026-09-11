@@ -581,17 +581,67 @@ keeps working against the same database.
 
 ---
 
+## Bugs found while implementing v2
+
+Same convention as the v1 scope doc's bug table, and the same argument for
+keeping it: the finding is as much a demonstration of process as the fix is.
+
+All three were found by reading v1 code with a wider scope in mind, before
+any of them had a chance to produce wrong output. None would have crashed.
+
+| # | Bug | Where | Impact if unfixed | How it was caught |
+|---|---|---|---|---|
+| 1 | Therapeutic area was tagged from a CLI flag applied to every file in `data/raw/`, and the upsert's `COALESCE(excluded.…, trials.…)` lets the incoming value win | `normalize/build_db.py` | `build_db.py --area antibacterials` silently relabels all 175 existing antifungal trials as antibacterial. No error. The dashboard's area filter just starts lying. Harmless with v1's one configured area; data corruption with v2's three | Tracing what `--area` would do on the second of three ingest runs |
+| 2 | Ingest sent `query.cond` AND `query.intr` in a single request, so a trial had to match both a listed condition and a listed intervention | `ingest/pull_trials.py` | Any trial whose intervention is a development code (APX001, F901318, SPR720) matched no intervention term and was never ingested. Those are novel assets — the highest-value rows in a competitive landscape. v1's ingest was systematically excluding the trials the tool exists to find | Asking what query would retrieve a Phase 1 asset that has no generic name yet |
+| 3 | `enrich/trim.py` looked like the obvious way to shrink stored records, but it reshapes to flat snake_case and drops `interventions[].description` | would have been `normalize/build_db.py` | Reshaping breaks `compute_materiality_hash()` (walks the nested path) and the `"protocolSection" in trial` check in `summarize.py`. Dropping the description deletes Tier C of the structured-match table — where a mechanism appears when the intervention name is only a code. Symptom would be novel assets ranking badly on mechanism queries, with nothing in any log | Reading `trim_study()`'s actual return shape before reusing it, rather than trusting its name |
+
+Bug 1 and bug 2 are the same underlying mistake in two places: **information
+that only one stage of the pipeline possesses was left unrecorded, and then
+reconstructed downstream by guessing.** Ingest knows which query matched a
+trial; v1 threw that away and had `build_db.py` infer it from a flag. The
+fix in both cases is to record it at the point it is known.
+
+Bug 3 is a different lesson: two functions that both "make records smaller"
+were doing incompatible jobs, and the shared vocabulary hid it. Hence two
+modules with the distinction written into both docstrings.
+
+### Verified, not assumed
+
+Compaction had to be hash-stable or the enrichment cost control would
+silently stop working — v1 bug #2 by another route. So it is asserted rather
+than believed: `normalize/compact.py` recomputes the materiality hash for
+the full and compacted form of every record in the corpus and exits non-zero
+on any mismatch.
+
+```
+Records:        175
+Total before:   4.29 MB
+Total after:    1.56 MB
+Reduction:      63.6%
+Mean size:      23.9 KB -> 8.7 KB
+
+HASH STABILITY VERIFIED on all 175 records:
+  compacted and full records produce identical materiality hashes.
+```
+
+The migration was verified the same way: v1 row counts identical before and
+after, all seven v2 tables present, no foreign-key violations, and a second
+run inserting zero rows.
+
+---
+
 ## Milestones
 
-1. `v2` branch, scope doc, schema migration ← **current**
-2. Expanded ingest: antifungal + antibacterial + antiviral, with coverage test
-3. `normalize/programs.py` + alias dictionary; report unresolved rate
-4. `retrieve/`: decompose → structured → encoder (fake) → fusion, unit-tested
-5. Real ONNX encoder; embed corpus; `docs/ABLATION.md` with measured results
-6. `analyze/`: landscape metrics and comparison matrix with provenance
-7. `synthesize/` + `validate/`: structured claims and the four checks
-8. `view/app.py`: Executive / Landscape / Compare / Evidence tabs
-9. README, architecture diagram, screenshots, demo of a caught claim
+1. ~~`v2` branch, scope doc, schema migration~~ ✅ — applied and verified
+2. ~~Expanded ingest config + coverage test~~ ✅ — 162 terms, 3 areas
+3. Run the full ingest and rebuild ← **current, requires local network**
+4. `normalize/programs.py` + alias dictionary; report unresolved rate
+5. `retrieve/`: decompose → structured → encoder (fake) → fusion, unit-tested
+6. Real ONNX encoder; embed corpus; `docs/ABLATION.md` with measured results
+7. `analyze/`: landscape metrics and comparison matrix with provenance
+8. `synthesize/` + `validate/`: structured claims and the four checks
+9. `view/app.py`: Executive / Landscape / Compare / Evidence tabs
+10. README, architecture diagram, screenshots, demo of a caught claim
 
 ---
 
