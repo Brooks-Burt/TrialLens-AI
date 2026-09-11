@@ -54,37 +54,86 @@ echinocandin that is not in `asset_aliases.json` at all**; it surfaced
 through the condition match plus the class appearing in trial text, which is
 the wide-net design working as intended.
 
-## 3. The normalisation fix — and where my prediction was wrong
+## 3. The normalisation fix — prediction right, instrument wrong
 
-`docs/SCOPE-v2.md` correction #1 claimed that applying the proposal's
-formula literally would make the semantic term contribute ~0.03 against
-structured's 0.6 — roughly **20:1**, i.e. functionally inert.
+`docs/SCOPE-v2.md` correction #1 claimed the proposal's literal formula
+would leave the semantic term contributing almost nothing, because raw
+cosine on biomedical text clusters in a narrow band rather than spanning
+0–1.
 
-Measured on the top 30 of the query above:
+Measured with `hashing-bow-384-s0`, that looked wrong:
 
-| Fusion | structured contribution | semantic contribution | ratio |
-|---|---|---|---|
-| raw cosine (proposal as written) | 0.6 × 0.385 = 0.231 | 0.4 × 0.253 = 0.101 | **2.3 : 1** |
-| pool-normalised (the fix) | 0.6 × 0.423 = 0.254 | 0.4 × 0.534 = 0.214 | **1.2 : 1** |
+| Encoder | raw cosine range | spread |
+|---|---|---|
+| `hashing-bow-384-s0` | 0.256 – 0.297 | 0.041 |
+| `hashing-bow-384-s0` (richer query) | 0.174 – 0.324 | 0.150 |
+| **`BAAI/bge-small-en-v1.5`** | **0.721 – 0.772** | **0.051** |
 
-Top-10 effect: 1 of 10 trials changes membership, 3 positions reorder.
+The real encoder confirms the prediction: everything lands in a tight band
+around 0.72–0.77, because a trained bi-encoder maps all fluent English into
+a narrow cone of the embedding space. The stand-in's wider, lower range is
+an artifact of bag-of-words counting, not evidence about the real system.
 
-**The prediction was wrong in magnitude, and the reason is instructive.**
-`HashingEncoder` produces cosines spanning 0.17–0.34 — a wide range,
-because a bag-of-words vectoriser genuinely separates unrelated documents.
-A *trained bi-encoder* compresses everything into roughly 0.75–0.92, because
-it maps all fluent English into a narrow cone of the embedding space. The
-compression problem is a property of trained encoders specifically.
+So the prediction was right and the first measurement was taken with the
+wrong instrument. Both are recorded because "measured with the fake, got
+2.3:1, then measured with the real model and got the predicted compression"
+is the actual sequence, and the intermediate wrong number is the part that
+explains why the ablation script now defaults to `--encoder onnx`.
 
-So the fake **understates** how much the fix matters, and the 2.3:1 figure
-is not the number to quote. The arithmetic with realistic compressed
-cosines is in `tests/test_retrieve.py::test_normalization_rescues_a_
-compressed_semantic_range`: at 0.80–0.86 the raw ratio exceeds 25:1 and
-normalising restores it to exactly the weight ratio, 1.5:1.
+### And a case the design doc did not anticipate: structured saturation
 
-Recorded rather than quietly corrected, because "I predicted 20:1, measured
-2.3:1 with the stand-in encoder, and the gap is explained by the stand-in's
-different similarity distribution" is the honest version.
+For _"glucan synthase inhibitors for invasive candidiasis"_ — one criterion
+— **all twelve top results scored structured = 1.000.** Every one matched
+`invasive candidiasis` exactly, so the structured term is a constant and
+contributes *no ordering at all*. The semantic arm decides the entire
+ranking.
+
+That is the case where normalisation stops being marginal and becomes the
+whole mechanism: with raw cosine the final scores would differ by
+0.4 × 0.051 = **0.02 across twelve trials**, an ordering that is real but
+sits at the edge of float noise and is impossible to present to a user as
+meaningful separation. Normalised, the same twelve spread across 0.4.
+
+Sparse-criteria questions are the common case for a landscape tool — users
+ask "what's happening in X", not "Phase 3 recruiting echinocandin trials in
+candidemia sponsored by Merck". So the fix matters most exactly where the
+tool is used most. `retrieve/ablation.py` now detects and reports saturation
+rather than printing a meaningless ratio.
+
+## 3b. Mechanism → compound generalisation: the result that matters
+
+Query: _"glucan synthase inhibitors for invasive candidiasis"_
+Encoder: `BAAI/bge-small-en-v1.5`
+
+```
+POOL  225 = 25 structured-only + 146 semantic-only + 54 both
+```
+
+| # | Trial | Resolved asset |
+|---|---|---|
+| 1 | β-D-Glucan surveillance with preemptive anidulafungin | Anidulafungin |
+| 2 | Comparison of two diagnostic tests | Micafungin |
+| 3 | Micafungin versus fluconazole in invasive candidiasis | Micafungin |
+| 4 | Pilot feasibility in patients at high risk | Caspofungin |
+| 5 | **CD101** compared to caspofungin | **Rezafungin**, Caspofungin |
+| 7 | Caspofungin prophylaxis followed by pre-emptive therapy | Caspofungin |
+| 9 | Rezafungin compared to standard antimicrobial regimen | Rezafungin |
+| 10 | IV **HRS9432** in candidemia | (Caspofungin comparator) |
+| 11 | Open-label non-comparative study | Anidulafungin, Voriconazole |
+
+**9 of 12 top results are glucan synthase inhibitor programs.
+0 of 12 contain the phrase "glucan synthase" anywhere in their record.**
+
+Nothing lexical connects "glucan synthase inhibitor" to "caspofungin",
+"micafungin", "anidulafungin", or "CD101". The structured scorer cannot make
+that jump — its tiers match strings, and the string is absent. The hashing
+encoder cannot either: on the same query it returned 4 of 6 in-class and was
+*beaten* by structured-only at 6 of 6.
+
+This is the single clearest evidence in the project that the semantic layer
+earns its place, and it is also the answer to "why not just use keyword
+search". A BD analyst asking about a mechanism does not know, and should not
+need to know, that CD101 is rezafungin.
 
 ## 4. Word-boundary matching, checked corpus-wide
 
@@ -121,6 +170,24 @@ against that trial would have degraded permanently, with no error and no log
 line.
 
 ---
+
+## Still to measure
+
+DDI demotion, across the whole pool, with the real encoder. The corpus
+deliberately retains ~15% pharmacology and interaction studies because
+precision was moved to retrieval rather than ingest (see
+`normalize/relevance.py`'s removal in git history). A landscape question must
+rank them low. Run:
+
+```
+python retrieve/ablation.py --encoder onnx
+```
+
+With the hashing baseline, 49 PK/interaction-titled trials appeared in a
+231-trial pool at median rank 128, with 5 in the top 30 and 28 in the bottom
+half. That is already demotion rather than promotion, but the real encoder is
+the number that counts, and a best-rank of 4 is worth looking at
+individually.
 
 ## What the fake cannot measure
 
