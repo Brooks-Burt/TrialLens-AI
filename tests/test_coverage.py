@@ -213,25 +213,75 @@ def test_no_dead_terms():
     The core assertion. A term with zero hits contributes nothing to the
     corpus while making the config look broader than the data is. That
     mismatch between stated and actual scope IS v1 bug #6.
+
+    A term may be exempted via the area's `known_zero` map, but only with a
+    written reason. That mechanism exists because some zeros are legitimate
+    -- a real pathogen the registry does not index at species level is not
+    the same defect as a misspelled compound -- and the alternatives were
+    both worse: deleting the term destroys the evidence that the question
+    was asked, and loosening the assertion to a warning means nobody reads
+    it. Requiring a reason keeps the test strict while letting a documented
+    exception through, and `test_known_zero_entries_are_documented` below
+    fails if an exemption is ever added without one.
     """
     manifest = require_manifest()
     config = load_config()
     term_hits = manifest.get("term_hits", {})
+
     dead = []
+    exempt = []
 
     for area, group, term in iter_terms(config):
         hits = term_hits.get(area, {}).get(group, {}).get(term)
-        if hits == 0:
+        if hits != 0:
+            continue
+        if f"{group}/{term}" in (config[area].get("known_zero") or {}):
+            exempt.append(f"{area}/{group}/{term}")
+        else:
             dead.append(f"{area}/{group}/{term}")
+
+    if exempt:
+        print(f"  {len(exempt)} documented zero-hit term(s): {', '.join(exempt)}")
 
     assert not dead, (
         f"{len(dead)} term(s) returned zero trials:\n  "
         + "\n  ".join(dead)
         + "\n\nEach is a typo, a renamed or discontinued compound, or a term "
-        "the registry does not index.\nFix or remove them in "
-        "ingest/query_config.json. Leaving them in means the config claims "
-        "coverage the corpus does not have."
+        "the registry does not index.\nFix it, remove it, or -- if the zero is "
+        "legitimate -- add it to that area's `known_zero` map in\n"
+        "ingest/query_config.json with a reason. Leaving it undocumented means "
+        "the config claims coverage the corpus does not have."
     )
+
+
+def test_known_zero_entries_are_documented():
+    """
+    An exemption without a reason is just a silenced test. Each `known_zero`
+    key must name a term that actually exists in the config, and carry a
+    non-trivial explanation.
+    """
+    config = load_config()
+    problems = []
+
+    for area, spec in config.items():
+        configured = {
+            f"{group}/{term}"
+            for a, group, term in iter_terms({area: spec})
+            if a == area
+        }
+        for key, reason in (spec.get("known_zero") or {}).items():
+            if key not in configured:
+                problems.append(
+                    f"{area}: known_zero key {key!r} matches no configured term "
+                    "-- stale exemption, or a typo in the key"
+                )
+            if not isinstance(reason, str) or len(reason.strip()) < 40:
+                problems.append(
+                    f"{area}: known_zero[{key!r}] needs a real explanation, "
+                    f"got {reason!r}"
+                )
+
+    assert not problems, "known_zero problems:\n  " + "\n  ".join(problems)
 
 
 def test_every_area_has_trials():
@@ -311,6 +361,7 @@ def main() -> int:
         test_manifest_exists,
         test_every_configured_term_was_queried,
         test_no_dead_terms,
+        test_known_zero_entries_are_documented,
         test_every_area_has_trials,
         test_every_term_exists_in_the_live_registry,
     ]

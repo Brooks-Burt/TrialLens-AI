@@ -90,6 +90,30 @@ PAGE_SIZE = 100
 # decision becomes a wrong conclusion later.
 DEFAULT_MAX_PER_TERM = 60
 
+# WHICH 60, NOT JUST HOW MANY.
+#
+# The first dry run capped 90 of 162 terms -- 56%. At that rate the cap is
+# not a safety valve, it IS the sampling method, and the question "which 60
+# does it keep?" decides what the whole corpus looks like.
+#
+# Without an explicit sort, that answer is whatever CT.gov happens to return
+# first. Unspecified order is not a neutral choice here: for 90 terms it
+# silently selects the corpus, and if the default correlates with registry
+# age then a competitive landscape gets filled with completed 1990s trials
+# while capping out before it reaches the current Phase 3 programs. That is
+# the worst possible bias for this tool -- and it would be invisible,
+# because the counts would all look reasonable.
+#
+# So the sort is explicit and recorded in the manifest. StartDate:desc means
+# each capped term contributes "the 60 most recently initiated trials," which
+# is a sampling rule that can be stated in one sentence and defended.
+#
+# LastUpdatePostDate:desc is the main alternative and is deliberately not the
+# default: it ranks a 1998 trial that got an administrative edit last month
+# above a program that started in 2025, which is the wrong signal for a
+# development landscape even though it sounds like a freshness sort.
+DEFAULT_SORT = "StartDate:desc"
+
 # Applied to condition and pathogen queries only. Interventional studies of
 # drugs or biologics -- which is what a development landscape is about.
 # Observational cohorts, registries, and expanded-access records are real
@@ -124,7 +148,37 @@ def quote_term(term: str) -> str:
     return f'"{term}"' if " " in term else term
 
 
-def build_term_queries(area: str, spec: dict) -> list[dict]:
+def preflight_sort(client: CTGovClient, sort: str) -> None:
+    """
+    Probe the sort parameter with one request before querying 162 terms.
+
+    Without this, a bad sort field fails inside the paging loop, where
+    CTGovClient retries three times with backoff per term -- so an invalid
+    value costs ~486 doomed requests and several minutes before the first
+    useful error, and the traceback points at the HTTP layer rather than at
+    the flag that caused it.
+
+    One call up front turns that into an immediate, accurate message. The
+    cost is a single request; the thing it protects against is the most
+    likely way this run fails.
+    """
+    if not sort:
+        return
+    try:
+        client.fetch_page({"pageSize": 1, "format": "json", "sort": sort})
+    except RuntimeError as exc:
+        raise SystemExit(
+            f"\nCT.gov rejected sort={sort!r}.\n\n"
+            f"  {exc}\n\n"
+            "Valid values look like 'StartDate:desc', 'LastUpdatePostDate:desc',\n"
+            "'StudyFirstPostDate:desc', 'EnrollmentCount:desc', or '@relevance'.\n"
+            "Pass --sort '' to query without an explicit sort -- but note that\n"
+            "with most terms capping, unspecified order means CT.gov's default\n"
+            "silently decides what your corpus contains.\n"
+        )
+
+
+def build_term_queries(area: str, spec: dict, sort: str = DEFAULT_SORT) -> list[dict]:
     """
     One query per term. Returns dicts of {group, term, params}.
 
@@ -149,6 +203,8 @@ def build_term_queries(area: str, spec: dict) -> list[dict]:
                 params.update(study_filters)
             if spec.get("status_filter"):
                 params["filter.overallStatus"] = spec["status_filter"]
+            if sort:
+                params["sort"] = sort
             queries.append(
                 {"area": area, "group": group, "term": term, "params": params}
             )
@@ -288,6 +344,7 @@ def run(
     refresh: bool,
     max_per_term: int,
     dry_run: bool,
+    sort: str = DEFAULT_SORT,
 ) -> int:
     config = load_config(config_path)
     areas = resolve_areas(requested_area, config)
@@ -296,19 +353,28 @@ def run(
         out_dir.mkdir(parents=True, exist_ok=True)
 
     client = CTGovClient()
+    preflight_sort(client, sort)
     manifest = load_manifest(manifest_path)
 
     print(f"Areas:        {', '.join(areas)}")
     print(f"Output dir:   {out_dir}")
     print(f"Manifest:     {manifest_path}")
     print(f"Max per term: {max_per_term}")
+    print(f"Sort:         {sort or 'CT.gov default (unspecified)'}")
     print(f"Mode:         {'DRY RUN (no files written)' if dry_run else 'WRITE'}")
     print()
+
+    # Recorded in the manifest because it is not a preference, it is a
+    # property of the data. With most terms capping, the sort determines
+    # which trials are in the corpus at all -- so any later analysis of that
+    # corpus needs to know the rule that selected it.
+    manifest["sort"] = sort
+    manifest["max_per_term"] = max_per_term
 
     totals = {"written": 0, "skipped": 0, "terms": 0, "dead": [], "capped": []}
 
     for area in areas:
-        queries = build_term_queries(area, config[area])
+        queries = build_term_queries(area, config[area], sort)
         print(f"=== {area} — {len(queries)} term queries ===")
 
         for i, query in enumerate(queries, 1):
@@ -350,16 +416,45 @@ def run(
     print("=== Run summary ===")
     print(f"Timestamp:       {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Terms queried:   {totals['terms']}")
-    print(f"Files written:   {totals['written']}")
-    print(f"Already present: {totals['skipped']} (use --refresh to overwrite)")
-    print(f"Unique trials in manifest: {unique_trials}")
+
+    # These labels are mode-dependent on purpose. Reporting "Already
+    # present: 7262 (use --refresh to overwrite)" after a dry run -- as the
+    # first version of this did -- states something that was never checked:
+    # in dry-run mode no file is examined, so nothing is known about whether
+    # any of them exist. This project already treats a misleading diagnostic
+    # as a bug rather than cosmetic (see v1 bug #1), and a summary line that
+    # confidently describes disk state it never read is exactly that.
+    if dry_run:
+        print(f"Matches seen:    {totals['skipped']} (term hits, with overlap)")
+        print(f"Files written:   0 (dry run -- nothing examined or written)")
+    else:
+        print(f"Files written:   {totals['written']}")
+        print(f"Already present: {totals['skipped']} (use --refresh to overwrite)")
+
+    print(f"Unique trials:   {unique_trials}"
+          + ("  (projected -- manifest not saved in dry-run mode)" if dry_run else ""))
 
     if totals["capped"]:
+        pct = 100 * len(totals["capped"]) / max(totals["terms"], 1)
         print()
-        print(f"CAPPED at --max-per-term={max_per_term} ({len(totals['capped'])} terms):")
+        print(f"CAPPED at --max-per-term={max_per_term}: "
+              f"{len(totals['capped'])} of {totals['terms']} terms ({pct:.0f}%)")
         for term in totals["capped"]:
             print(f"  {term}")
-        print("  These pulls are truncated samples, not complete term coverage.")
+        print()
+        print(f"  Each kept the first {max_per_term} results under sort="
+              f"{sort or 'CT.gov default'}.")
+        if pct >= 40:
+            # Above roughly this fraction the cap stops being a safety valve
+            # and becomes the sampling method, which changes what the corpus
+            # counts actually mean. Saying so here is cheaper than having it
+            # discovered in the analytics.
+            print(f"  At {pct:.0f}% capped, the cap is the sampling method rather than a")
+            print("  safety valve. Counts over these terms are lower bounds, not")
+            print("  totals -- analyze/ must present them as such.")
+        if not sort:
+            print("  WARNING: no sort specified, so CT.gov's default order chose")
+            print("           which results were kept. Set --sort for a stateable rule.")
 
     if totals["dead"]:
         print()
@@ -396,6 +491,13 @@ def parse_args():
         "Capped terms are reported in the run summary.",
     )
     parser.add_argument(
+        "--sort",
+        default=DEFAULT_SORT,
+        help=f"CT.gov sort order, deciding WHICH results a capped term keeps "
+        f"(default {DEFAULT_SORT!r}). Pass '' to leave it unspecified, which "
+        f"lets CT.gov's default choose your corpus for you.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Query and report counts without writing files or the manifest. "
@@ -416,6 +518,7 @@ if __name__ == "__main__":
                 args.refresh,
                 args.max_per_term,
                 args.dry_run,
+                args.sort,
             )
         )
     except Exception as exc:

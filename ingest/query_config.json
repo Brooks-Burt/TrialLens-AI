@@ -32,11 +32,15 @@
       "Candida auris",
       "Candida albicans",
       "Candida glabrata",
+      "Nakaseomyces glabratus",
       "Aspergillus fumigatus",
       "Cryptococcus neoformans",
       "Pneumocystis jirovecii",
       "Rhizopus"
     ],
+    "known_zero": {
+      "pathogen/Candida glabrata": "Returns zero interventional trials on the condition field, confirmed by dry run. Two candidate explanations and the config tests both rather than assuming either: (a) the species was reclassified as Nakaseomyces glabratus in 2022, so registry indexing may have moved -- 'Nakaseomyces glabratus' is now queried alongside it, and if that term returns hits the rename is the cause; (b) interventional trials simply label the condition at genus or syndrome level ('Candidiasis', 'Invasive Candidiasis') rather than naming this species, which is consistent with C. albicans returning hits mainly through vulvovaginal candidiasis trials where the species IS named. The term is kept because it costs one request and would start matching the moment a trial labels it, and removing it would delete the evidence that the question was asked."
+    },
     "intervention_terms": [
       "fluconazole",
       "itraconazole",
