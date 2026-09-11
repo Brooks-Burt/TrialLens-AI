@@ -5,9 +5,16 @@ was actually measured, including the places the measurement contradicted the
 design doc._
 
 Corpus: 3,022 antifungal trials, 994 programs, 48 assets.
-Encoder below: `hashing-bow-384-s0` (the dependency-free fake).
-**The real `BAAI/bge-small-en-v1.5` numbers are not in yet** — see
-"What the fake cannot measure".
+Both encoders are cached simultaneously (3,022 vectors each) because
+`trial_embeddings` is keyed on `(nct_id, model_id)` — comparing them needs
+no re-embedding.
+
+Sections 1, 2, 4 and 5 were measured with `hashing-bow-384-s0`, the
+dependency-free stand-in. Sections 3 and 3b use the real
+`BAAI/bge-small-en-v1.5`, and §3 is where the stand-in turned out to be the
+wrong instrument.
+
+Reproduce everything with `python retrieve/ablation.py --encoder onnx`.
 
 ---
 
