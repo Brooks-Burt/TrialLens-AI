@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from client import call_claude, MODEL_SUMMARY
 from prompts import TRIAL_SUMMARY_SYSTEM, TRIAL_SUMMARY_USER_TEMPLATE
+from trim import trim_study
 
 REQUIRED_KEYS = {"scientific_summary", "potential_risks", "business_impact"}
 
@@ -42,14 +43,35 @@ def summarize_trial(trial: dict) -> dict:
     fail loudly here rather than writing a half-populated row to the
     summaries table.
     """
-    trial_json = json.dumps(trial, indent=2, default=str)
+    # Trim before serializing. A full CT.gov record with posted results runs
+    # to 333k characters (~90k tokens), of which ~88% is per-arm statistical
+    # tables that a 2-4 sentence summary has no use for. trim.py keeps the
+    # signal, digests the results section, and records what it dropped in an
+    # `_omitted` key so the model never mistakes "we didn't send this" for
+    # "the registry doesn't have this". Measured reduction across the current
+    # backlog: 78.5% fewer input characters.
+    #
+    # Trim ONLY a raw CT.gov v2 record, identified by its `protocolSection`
+    # key. A flat dict (this module's own smoke test, or an already-trimmed
+    # record) passes through untouched. Without this check, trim_study would
+    # look for protocolSection on a flat dict, find nothing, and return an
+    # almost-empty payload -- the model would then dutifully report every
+    # field as unreported, and the failure would look like a prompt problem.
+    payload = trim_study(trial) if "protocolSection" in trial else trial
+    trial_json = json.dumps(payload, indent=2, default=str)
     user_message = TRIAL_SUMMARY_USER_TEMPLATE.format(trial_json=trial_json)
 
     result = call_claude(
         system=TRIAL_SUMMARY_SYSTEM,
         user_message=user_message,
         model=MODEL_SUMMARY,
-        max_tokens=800,
+        # 800 was too tight. Three prose sections about a large trial with
+        # posted results do not fit, and the failure mode was a truncated
+        # JSON object rather than a short summary -- so the trial failed
+        # outright instead of degrading. 2000 clears the largest records in
+        # the current dataset with headroom. Output tokens are only billed
+        # as generated, so a higher ceiling costs nothing on small trials.
+        max_tokens=2000,
     )
 
     missing = REQUIRED_KEYS - result.keys()

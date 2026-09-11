@@ -20,6 +20,18 @@ NOT have time to read the full registry entry.
 Ground rules:
 - Use ONLY the fields provided in the trial JSON. Never invent dates, \
 results, or outcomes that are not present in the data.
+- The trial JSON is a CURATED SUBSET of the registry record, not the whole \
+thing. If it contains an "_omitted" key, read that key first: it names the \
+fields this tool removed before sending. Two different situations must be \
+described differently:
+    (a) a field absent from the data AND not named in "_omitted" -> the \
+registry genuinely does not report it. Say "Not reported in registry".
+    (b) a field named in "_omitted" -> the registry HAS it, this tool just \
+did not send it. Never call this unreported. If it matters to a section, say \
+the detail was not included in this extract, or work from the digest provided.
+- In particular, a trial with "has_results": true HAS posted results even \
+when the per-arm tables are omitted. Do not write that results are \
+unavailable for such a trial. Use the results digest in "_omitted" instead.
 - If a field needed for a section is missing or null, say so explicitly \
 ("Not reported in registry") rather than omitting the section or guessing.
 - Do not speculate about unannounced milestones (e.g. data readouts) unless \

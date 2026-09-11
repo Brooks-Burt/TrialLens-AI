@@ -44,9 +44,6 @@ if str(REPO_ROOT) not in sys.path:
 
 DB_PATH = REPO_ROOT / "data" / "trials.db"
 
-PHASES = ["PHASE1", "PHASE2", "PHASE3", "PHASE4", "NA"]
-STATUSES = ["RECRUITING", "ACTIVE_NOT_RECRUITING", "COMPLETED", "TERMINATED", "WITHDRAWN"]
-
 PAGES = ["Ask", "Browse trials", "Trial detail", "Change feed"]
 
 EXAMPLE_QUESTIONS = [
@@ -55,16 +52,96 @@ EXAMPLE_QUESTIONS = [
     "What echinocandin trials have been terminated?",
 ]
 
-# Status -> pill color. Kept as a plain dict rather than computed so the
-# mapping is greppable and obvious; these are the only five statuses the
-# schema's queries filter on.
+# Filter options are DERIVED FROM THE DATA, not hardcoded.
+#
+# The first version of this file hardcoded five statuses and five phases.
+# The real dataset has ten statuses and nine phase values, so 29 of 175
+# trials (UNKNOWN, NOT_YET_RECRUITING, ENROLLING_BY_INVITATION,
+# APPROVED_FOR_MARKETING, NO_LONGER_AVAILABLE) could not be reached by the
+# status filter at all. Nothing errored. The trials just weren't there.
+#
+# The lists below control DISPLAY ORDER only. Any value present in the
+# database but missing from them still appears in the filter, appended at
+# the end. That way ingesting a second therapeutic area, or CT.gov adding
+# an enum value, degrades to "sorted at the bottom" instead of "invisible".
+PHASE_ORDER = ["EARLY_PHASE1", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "NA"]
+
+STATUS_ORDER = [
+    "RECRUITING",
+    "NOT_YET_RECRUITING",
+    "ENROLLING_BY_INVITATION",
+    "ACTIVE_NOT_RECRUITING",
+    "SUSPENDED",
+    "COMPLETED",
+    "TERMINATED",
+    "WITHDRAWN",
+    "APPROVED_FOR_MARKETING",
+    "NO_LONGER_AVAILABLE",
+    "TEMPORARILY_NOT_AVAILABLE",
+    "UNKNOWN",
+]
+
+# Explicit sentinel for a null/empty registry value, so "phase not reported"
+# (29 trials here) is a filterable state rather than a hole in the UI.
+NOT_REPORTED = "(not reported)"
+
+# Status -> pill tone. Covers every CT.gov overallStatus value, not just the
+# ones that happen to be in the current pull. Anything unrecognised falls
+# through to "neutral" via .get(), so a new enum value renders plainly
+# instead of crashing.
 STATUS_TONE = {
     "RECRUITING": "ok",
+    "NOT_YET_RECRUITING": "info",
+    "ENROLLING_BY_INVITATION": "info",
     "ACTIVE_NOT_RECRUITING": "info",
+    "SUSPENDED": "warn",
     "COMPLETED": "neutral",
     "TERMINATED": "bad",
     "WITHDRAWN": "bad",
+    "NO_LONGER_AVAILABLE": "bad",
+    "TEMPORARILY_NOT_AVAILABLE": "warn",
+    "APPROVED_FOR_MARKETING": "ok",
+    "UNKNOWN": "neutral",
 }
+
+
+def _filter_options(values, canonical: list[str]) -> list[str]:
+    """
+    Build a filter's option list from the values actually present.
+
+    Returns canonical values first (in canonical order), then any unexpected
+    values sorted alphabetically, then the NOT_REPORTED sentinel if any row
+    had a null or empty value.
+    """
+    present, has_null = set(), False
+    for v in values:
+        if v is None or v == "":
+            has_null = True
+        else:
+            present.add(v)
+    ordered = [c for c in canonical if c in present]
+    ordered += sorted(present - set(canonical))
+    if has_null:
+        ordered.append(NOT_REPORTED)
+    return ordered
+
+
+def phase_options(trials: list[dict]) -> list[str]:
+    """`phase` can hold combined values like 'PHASE2/PHASE3', so split on '/'
+    and offer the atomic phases. The filter matches on set intersection, so a
+    combined trial correctly matches either component."""
+    atomic = []
+    for t in trials:
+        raw = t.get("phase")
+        if not raw:
+            atomic.append(None)
+        else:
+            atomic.extend(raw.split("/"))
+    return _filter_options(atomic, PHASE_ORDER)
+
+
+def status_options(trials: list[dict]) -> list[str]:
+    return _filter_options((t.get("overall_status") for t in trials), STATUS_ORDER)
 
 
 # ---------------------------------------------------------------------
@@ -555,11 +632,11 @@ def render_browse(trials: list[dict]):
 
     f1, f2 = st.columns(2)
     with f1:
-        phase_sel = st.multiselect("Phase", PHASES, key="browse_phase")
+        phase_sel = st.multiselect("Phase", phase_options(trials), key="browse_phase")
         areas = sorted({t["therapeutic_area"] for t in trials if t.get("therapeutic_area")})
         area = st.selectbox("Therapeutic area", ["Any"] + areas, key="browse_area")
     with f2:
-        status_sel = st.multiselect("Status", STATUSES, key="browse_status")
+        status_sel = st.multiselect("Status", status_options(trials), key="browse_status")
         sponsors = sorted({t["sponsor"] for t in trials if t.get("sponsor")})
         sponsor_sel = st.multiselect("Sponsor", sponsors, key="browse_sponsor")
 
@@ -572,9 +649,24 @@ def render_browse(trials: list[dict]):
     if area != "Any":
         results = [t for t in results if t.get("therapeutic_area") == area]
     if phase_sel:
-        results = [t for t in results if set((t.get("phase") or "").split("/")) & set(phase_sel)]
+        # NOT_REPORTED has to be checked separately: a null phase has no
+        # atomic values to intersect against, so a plain set intersection
+        # would drop those 29 trials no matter what the user selected.
+        want_null = NOT_REPORTED in phase_sel
+        want = set(phase_sel) - {NOT_REPORTED}
+        results = [
+            t for t in results
+            if (want_null and not t.get("phase"))
+            or (want and set((t.get("phase") or "").split("/")) & want)
+        ]
     if status_sel:
-        results = [t for t in results if t.get("overall_status") in status_sel]
+        want_null = NOT_REPORTED in status_sel
+        want = set(status_sel) - {NOT_REPORTED}
+        results = [
+            t for t in results
+            if (want_null and not t.get("overall_status"))
+            or (t.get("overall_status") in want)
+        ]
     if sponsor_sel:
         results = [t for t in results if t.get("sponsor") in sponsor_sel]
     if only_summarized:

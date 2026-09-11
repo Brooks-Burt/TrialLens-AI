@@ -69,13 +69,34 @@ DEFAULT_TOP_N = 15
 # first; ties break on whichever registry date is most recent. Nothing
 # here is subjective or model-driven -- these are settled, documented
 # choices, not tuned constants.
-PHASE_RANK = {"PHASE4": 4, "PHASE3": 3, "PHASE2": 2, "PHASE1": 1}
+# Every CT.gov enum value gets an explicit score, not just the common ones.
+# The first version listed five statuses; the real dataset has ten, and the
+# five that were missing all fell through .get(..., 0) and tied with
+# TERMINATED and WITHDRAWN. That silently ranked 27 of 175 trials as if they
+# were dead, including NOT_YET_RECRUITING and ENROLLING_BY_INVITATION trials
+# that are arguably the most interesting ones in a competitive readout.
+PHASE_RANK = {
+    "PHASE4": 5,
+    "PHASE3": 4,
+    "PHASE2": 3,
+    "PHASE1": 2,
+    "EARLY_PHASE1": 1,
+    "NA": 0,
+}
+
 STATUS_RANK = {
-    "RECRUITING": 3,
-    "ACTIVE_NOT_RECRUITING": 2,
-    "COMPLETED": 1,
+    "RECRUITING": 6,
+    "ENROLLING_BY_INVITATION": 5,
+    "NOT_YET_RECRUITING": 5,
+    "ACTIVE_NOT_RECRUITING": 4,
+    "APPROVED_FOR_MARKETING": 3,
+    "COMPLETED": 2,
+    "SUSPENDED": 1,
+    "TEMPORARILY_NOT_AVAILABLE": 1,
+    "UNKNOWN": 1,
     "TERMINATED": 0,
     "WITHDRAWN": 0,
+    "NO_LONGER_AVAILABLE": 0,
 }
 
 

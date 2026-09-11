@@ -55,7 +55,7 @@ def synthesize_landscape(user_query: str, trials_with_summaries: list[dict]) -> 
         system=LANDSCAPE_SYSTEM,
         user_message=user_message,
         model=MODEL_LANDSCAPE,
-        max_tokens=600,
+        max_tokens=1200,
     )
 
     if "competitive_landscape" not in result:

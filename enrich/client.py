@@ -43,6 +43,23 @@ def _strip_json_fences(text: str) -> str:
     return text.strip()
 
 
+class TruncatedResponseError(RuntimeError):
+    """
+    The model ran out of output budget mid-response.
+
+    This gets its own exception type because it is NOT a transient failure
+    and must not be retried. Retrying is deterministic waste: the same input
+    and the same max_tokens produce the same truncation, so a 3-attempt loop
+    just triples the bill for the same error.
+
+    It also has to be caught BEFORE json.loads, because a truncated JSON
+    object surfaces as `json.JSONDecodeError: Unterminated string`, which
+    points at the parser and hides the actual cause (the token ceiling).
+    That misdiagnosis cost real debugging time on NCT00413218, a trial whose
+    registry record is ~40k tokens and whose summary did not fit in 800.
+    """
+
+
 def call_claude(
     system: str,
     user_message: str,
@@ -66,6 +83,19 @@ def call_claude(
             raw_text = "".join(
                 block.text for block in response.content if block.type == "text"
             )
+
+            # Check the stop reason before parsing. `stop_reason == "max_tokens"`
+            # is the API telling us plainly that the response is incomplete;
+            # trusting the parser to infer that from a syntax error is how you
+            # end up chasing a JSON bug that was never a JSON bug.
+            if response.stop_reason == "max_tokens":
+                raise TruncatedResponseError(
+                    f"Response hit the {max_tokens}-token ceiling and was cut off "
+                    f"mid-JSON ({len(raw_text)} chars returned). Raise max_tokens "
+                    f"for this call, or trim the input record. Not retrying, since "
+                    f"the same request would truncate identically."
+                )
+
             cleaned = _strip_json_fences(raw_text)
             return json.loads(cleaned)
 
@@ -75,10 +105,14 @@ def call_claude(
             time.sleep(wait)
 
         except json.JSONDecodeError as e:
-            # Model didn't follow the JSON contract. Worth logging the raw
-            # text somewhere in your real implementation so you can spot
-            # prompt drift -- swallowing it silently will hide bugs.
+            # Genuine prompt drift: the response completed but wasn't valid
+            # JSON. Log the raw text -- swallowing it silently is how prompt
+            # regressions go unnoticed.
             last_error = e
+            print(
+                f"  [call_claude] attempt {attempt}: response was not valid JSON "
+                f"({e}). First 300 chars:\n    {raw_text[:300]!r}"
+            )
             time.sleep(1)
 
     raise RuntimeError(
