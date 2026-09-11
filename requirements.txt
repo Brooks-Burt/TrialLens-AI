@@ -8,3 +8,5 @@ python-dotenv>=1.0
 # below the next major release means a `pip install -r requirements.txt`
 # six months from now can't silently turn a warning into a TypeError.
 streamlit>=1.38,<2.0
+fastembed>=0.4.0
+numpy>=1.24
