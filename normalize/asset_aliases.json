@@ -1,111 +1,597 @@
 {
   "_README": {
     "purpose": "Curated asset dictionary for normalize/programs.py. Maps the many strings CT.gov contains for one drug onto a single canonical asset, so that (sponsor, asset) pairs can be counted as programs.",
-
     "why_curated_and_not_inferred": "Decision 5 in docs/SCOPE-v2.md: the LLM translates, Python decides. Asset identity determines every headline count in the landscape, so it has to be reproducible and inspectable rather than a model's judgment that varies between runs. This file is the inspectable part.",
-
     "why_an_allowlist_beats_stem_matching": "Learned from the corpus. Stem-matching on 'azole' looked obviously correct and put omeprazole, esomeprazole, rabeprazole, lansoprazole, pantoprazole, metronidazole, tinidazole, sulfamethoxazole, letrozole and anastrozole into the antifungal asset list -- PPIs, a nitroimidazole antiparasitic, a sulfonamide, and two aromatase inhibitors. Two of those were in the top 30 'antifungal' interventions by count. There is no clean shared suffix across antifungal azoles (fluconazole, clotrimazole, bifonazole) that excludes the others, so an allowlist is not a shortcut here, it is the only correct approach.",
-
     "development_codes": "Code names are the whole point of this file, not a nicety. A novel asset's early trials name it only by code -- APX001, F901318, SCY-078, CD101, VT-1161, PC945 -- and those are precisely the trials a competitive landscape most needs to catch. v1's ingest discarded them entirely; resolving them to their compound is what turns them into a visible program.",
-
     "active_moieties": "manogepix is the active moiety of the prodrug fosmanogepix, and both appear as interventions. They are ONE program: a sponsor developing fosmanogepix is not also competing with itself via manogepix. Same for fosravuconazole/ravuconazole.",
-
     "formulation_note": "Amphotericin B formulations are kept as SEPARATE assets. Conventional deoxycholate, liposomal (AmBisome), lipid complex (Abelcet), and oral encochleated (MAT2203) have materially different toxicity, route, and commercial positioning -- treating them as one asset would merge a 1960s generic with an active development program. This is a deliberate exception to 'same molecule, same asset', and it is the kind of call that should be visible in a config rather than buried in code.",
-
     "class_field": "Mechanistic class, used for the landscape's grouping and for the 'target' attribute in the comparison table. Populated from this dictionary, so the comparison cell renders with source='alias_dictionary' rather than 'derived_from_text' -- see the attribute_provenance table."
   },
-
   "assets": {
-    "fluconazole":      { "canonical": "Fluconazole",      "class": "triazole",      "aliases": ["diflucan", "trican", "flucanazole", "uf 1000", "fluconazol"] },
-    "itraconazole":     { "canonical": "Itraconazole",      "class": "triazole",      "aliases": ["sporanox", "onmel", "tolsura", "suba-itraconazole", "suba itraconazole", "itraconazol", "r51211", "r 51211", "lozanoc"] },
-    "voriconazole":     { "canonical": "Voriconazole",      "class": "triazole",      "aliases": ["vfend", "uk-109496", "uk 109496", "voriconazol"] },
-    "posaconazole":     { "canonical": "Posaconazole",      "class": "triazole",      "aliases": ["noxafil", "sch 56592", "sch-56592", "posaconazol"] },
-    "isavuconazole":    { "canonical": "Isavuconazole",     "class": "triazole",      "aliases": ["cresemba", "isavuconazonium", "isavuconazonium sulfate", "bal8557", "bal 8557", "bal4815"] },
-    "ravuconazole":     { "canonical": "Ravuconazole",      "class": "triazole",      "aliases": ["fosravuconazole", "bms-207147", "e1224"] },
-    "albaconazole":     { "canonical": "Albaconazole",      "class": "triazole",      "aliases": ["ur-9825", "ur 9825"] },
-    "oteseconazole":    { "canonical": "Oteseconazole",     "class": "triazole (CYP51-selective)", "aliases": ["vivjoa", "vt-1161", "vt 1161"] },
-    "opelconazole":     { "canonical": "Opelconazole",      "class": "triazole (inhaled)", "aliases": ["pc945", "pc-945"] },
-    "vt-1598":          { "canonical": "VT-1598",           "class": "triazole (CYP51-selective)", "aliases": ["vt1598"] },
-    "efinaconazole":    { "canonical": "Efinaconazole",     "class": "triazole (topical)", "aliases": ["jublia", "kerydin ef", "kp-103"] },
-    "terconazole":      { "canonical": "Terconazole",       "class": "triazole (topical)", "aliases": ["terazol"] },
-
-    "ketoconazole":     { "canonical": "Ketoconazole",      "class": "imidazole",     "aliases": ["nizoral", "ketoconazol", "r41400"] },
-    "clotrimazole":     { "canonical": "Clotrimazole",      "class": "imidazole",     "aliases": ["canesten", "lotrimin", "mycelex", "clotrimazol"] },
-    "miconazole":       { "canonical": "Miconazole",        "class": "imidazole",     "aliases": ["daktarin", "monistat", "oravig", "loramyc", "miconazol"] },
-    "econazole":        { "canonical": "Econazole",         "class": "imidazole",     "aliases": ["spectazole", "ecostatin"] },
-    "sertaconazole":    { "canonical": "Sertaconazole",     "class": "imidazole",     "aliases": ["ertaczo", "dermofix"] },
-    "oxiconazole":      { "canonical": "Oxiconazole",       "class": "imidazole",     "aliases": ["oxistat"] },
-    "sulconazole":      { "canonical": "Sulconazole",       "class": "imidazole",     "aliases": ["exelderm"] },
-    "tioconazole":      { "canonical": "Tioconazole",       "class": "imidazole",     "aliases": ["vagistat", "trosyd"] },
-    "butoconazole":     { "canonical": "Butoconazole",      "class": "imidazole",     "aliases": ["gynazole"] },
-    "bifonazole":       { "canonical": "Bifonazole",        "class": "imidazole",     "aliases": ["mycospor"] },
-    "isoconazole":      { "canonical": "Isoconazole",       "class": "imidazole",     "aliases": ["travogen"] },
-    "fenticonazole":    { "canonical": "Fenticonazole",     "class": "imidazole",     "aliases": ["lomexin"] },
-    "eberconazole":     { "canonical": "Eberconazole",      "class": "imidazole",     "aliases": [] },
-    "flutrimazole":     { "canonical": "Flutrimazole",      "class": "imidazole",     "aliases": [] },
-    "omoconazole":      { "canonical": "Omoconazole",       "class": "imidazole",     "aliases": [] },
-    "luliconazole":     { "canonical": "Luliconazole",      "class": "imidazole (topical)", "aliases": ["luzu", "lulicon", "nnd-502"] },
-
-    "caspofungin":      { "canonical": "Caspofungin",       "class": "echinocandin",  "aliases": ["cancidas", "mk-0991", "mk 0991", "l-743872"] },
-    "micafungin":       { "canonical": "Micafungin",        "class": "echinocandin",  "aliases": ["mycamine", "funguard", "fk463", "fk 463"] },
-    "anidulafungin":    { "canonical": "Anidulafungin",     "class": "echinocandin",  "aliases": ["eraxis", "ecalta", "ly303366", "ly 303366", "v-echinocandin"] },
-    "rezafungin":       { "canonical": "Rezafungin",        "class": "echinocandin (long-acting)", "aliases": ["rezzayo", "cd101", "cd-101", "sp3025"] },
-
-    "amphotericin b deoxycholate": { "canonical": "Amphotericin B (conventional)", "class": "polyene", "aliases": ["fungizone", "amphotericin b deoxycholate", "conventional amphotericin b", "d-amb", "damb"] },
-    "liposomal amphotericin b":    { "canonical": "Liposomal Amphotericin B",      "class": "polyene (liposomal)", "aliases": ["ambisome", "l-amb", "lamb", "liposomal amphotericin", "amphotericin b liposome", "amphotericin b liposomal"] },
-    "amphotericin b lipid complex":{ "canonical": "Amphotericin B Lipid Complex",  "class": "polyene (lipid complex)", "aliases": ["abelcet", "ablc", "amphotericin b lipid"] },
-    "amphotericin b colloidal dispersion": { "canonical": "Amphotericin B Colloidal Dispersion", "class": "polyene (colloidal)", "aliases": ["amphotec", "abcd", "amphocil"] },
-    "oral encochleated amphotericin b": { "canonical": "Oral Encochleated Amphotericin B", "class": "polyene (oral encochleated)", "aliases": ["mat2203", "mat-2203", "encochleated amphotericin b", "cams"] },
-    "nystatin":         { "canonical": "Nystatin",          "class": "polyene",       "aliases": ["mycostatin", "nilstat", "nystan", "nystatin lf"] },
-    "natamycin":        { "canonical": "Natamycin",         "class": "polyene",       "aliases": ["natacyn", "pimaricin"] },
-
-    "terbinafine":      { "canonical": "Terbinafine",       "class": "allylamine",    "aliases": ["lamisil", "terbinafin", "sf 86-327"] },
-    "naftifine":        { "canonical": "Naftifine",         "class": "allylamine",    "aliases": ["naftin"] },
-    "butenafine":       { "canonical": "Butenafine",        "class": "benzylamine",   "aliases": ["mentax", "lotrimin ultra"] },
-    "amorolfine":       { "canonical": "Amorolfine",        "class": "morpholine",    "aliases": ["loceryl"] },
-
-    "flucytosine":      { "canonical": "Flucytosine",       "class": "pyrimidine analogue", "aliases": ["ancobon", "5-fc", "5fc", "5-fluorocytosine"] },
-    "griseofulvin":     { "canonical": "Griseofulvin",      "class": "benzofuran",    "aliases": ["grifulvin", "gris-peg", "fulcin"] },
-    "ciclopirox":       { "canonical": "Ciclopirox",        "class": "hydroxypyridone", "aliases": ["penlac", "loprox", "batrafen", "ciclopirox olamine"] },
-    "tavaborole":       { "canonical": "Tavaborole",        "class": "benzoxaborole", "aliases": ["kerydin", "an2690", "an-2690"] },
-    "tolnaftate":       { "canonical": "Tolnaftate",        "class": "thiocarbamate", "aliases": ["tinactin"] },
-    "undecylenic acid": { "canonical": "Undecylenic Acid",  "class": "fatty acid",    "aliases": ["undecenoic acid"] },
-    "selenium sulfide": { "canonical": "Selenium Sulfide",  "class": "topical keratolytic", "aliases": ["selsun"] },
-    "potassium iodide": { "canonical": "Potassium Iodide",  "class": "halide",        "aliases": ["ski", "saturated solution of potassium iodide", "sski"] },
-
-    "olorofim":         { "canonical": "Olorofim",          "class": "orotomide (DHODH inhibitor)", "aliases": ["f901318", "f-901318"] },
-    "fosmanogepix":     { "canonical": "Fosmanogepix",      "class": "Gwt1 inhibitor", "aliases": ["manogepix", "apx001", "apx-001", "apx001a", "e1211", "pf-07842805"] },
-    "ibrexafungerp":    { "canonical": "Ibrexafungerp",     "class": "triterpenoid glucan synthase inhibitor", "aliases": ["brexafemme", "scy-078", "scy078", "mk-3118"] },
-    "nikkomycin z":     { "canonical": "Nikkomycin Z",      "class": "chitin synthase inhibitor", "aliases": ["nikkomycin"] },
-    "ati-2307":         { "canonical": "ATI-2307",          "class": "mitochondrial inhibitor", "aliases": ["ati2307", "t-2307"] }
+    "fluconazole": {
+      "canonical": "Fluconazole",
+      "class": "triazole",
+      "aliases": [
+        "diflucan",
+        "trican",
+        "flucanazole",
+        "uf 1000",
+        "fluconazol"
+      ]
+    },
+    "itraconazole": {
+      "canonical": "Itraconazole",
+      "class": "triazole",
+      "aliases": [
+        "sporanox",
+        "onmel",
+        "tolsura",
+        "suba-itraconazole",
+        "suba itraconazole",
+        "itraconazol",
+        "r51211",
+        "r 51211",
+        "lozanoc"
+      ]
+    },
+    "voriconazole": {
+      "canonical": "Voriconazole",
+      "class": "triazole",
+      "aliases": [
+        "vfend",
+        "uk-109496",
+        "uk 109496",
+        "voriconazol"
+      ]
+    },
+    "posaconazole": {
+      "canonical": "Posaconazole",
+      "class": "triazole",
+      "aliases": [
+        "noxafil",
+        "sch 56592",
+        "sch-56592",
+        "posaconazol"
+      ]
+    },
+    "isavuconazole": {
+      "canonical": "Isavuconazole",
+      "class": "triazole",
+      "aliases": [
+        "cresemba",
+        "isavuconazonium",
+        "isavuconazonium sulfate",
+        "bal8557",
+        "bal 8557",
+        "bal4815"
+      ]
+    },
+    "ravuconazole": {
+      "canonical": "Ravuconazole",
+      "class": "triazole",
+      "aliases": [
+        "fosravuconazole",
+        "bms-207147",
+        "e1224"
+      ]
+    },
+    "albaconazole": {
+      "canonical": "Albaconazole",
+      "class": "triazole",
+      "aliases": [
+        "ur-9825",
+        "ur 9825"
+      ]
+    },
+    "oteseconazole": {
+      "canonical": "Oteseconazole",
+      "class": "triazole (CYP51-selective)",
+      "aliases": [
+        "vivjoa",
+        "vt-1161",
+        "vt 1161"
+      ]
+    },
+    "opelconazole": {
+      "canonical": "Opelconazole",
+      "class": "triazole (inhaled)",
+      "aliases": [
+        "pc945",
+        "pc-945"
+      ]
+    },
+    "vt-1598": {
+      "canonical": "VT-1598",
+      "class": "triazole (CYP51-selective)",
+      "aliases": [
+        "vt1598"
+      ]
+    },
+    "efinaconazole": {
+      "canonical": "Efinaconazole",
+      "class": "triazole (topical)",
+      "aliases": [
+        "jublia",
+        "kerydin ef",
+        "kp-103"
+      ]
+    },
+    "terconazole": {
+      "canonical": "Terconazole",
+      "class": "triazole (topical)",
+      "aliases": [
+        "terazol"
+      ]
+    },
+    "ketoconazole": {
+      "canonical": "Ketoconazole",
+      "class": "imidazole",
+      "aliases": [
+        "nizoral",
+        "ketoconazol",
+        "r41400"
+      ]
+    },
+    "clotrimazole": {
+      "canonical": "Clotrimazole",
+      "class": "imidazole",
+      "aliases": [
+        "canesten",
+        "lotrimin",
+        "mycelex",
+        "clotrimazol"
+      ]
+    },
+    "miconazole": {
+      "canonical": "Miconazole",
+      "class": "imidazole",
+      "aliases": [
+        "daktarin",
+        "monistat",
+        "oravig",
+        "loramyc",
+        "miconazol"
+      ]
+    },
+    "econazole": {
+      "canonical": "Econazole",
+      "class": "imidazole",
+      "aliases": [
+        "spectazole",
+        "ecostatin"
+      ]
+    },
+    "sertaconazole": {
+      "canonical": "Sertaconazole",
+      "class": "imidazole",
+      "aliases": [
+        "ertaczo",
+        "dermofix"
+      ]
+    },
+    "oxiconazole": {
+      "canonical": "Oxiconazole",
+      "class": "imidazole",
+      "aliases": [
+        "oxistat"
+      ]
+    },
+    "sulconazole": {
+      "canonical": "Sulconazole",
+      "class": "imidazole",
+      "aliases": [
+        "exelderm"
+      ]
+    },
+    "tioconazole": {
+      "canonical": "Tioconazole",
+      "class": "imidazole",
+      "aliases": [
+        "vagistat",
+        "trosyd"
+      ]
+    },
+    "butoconazole": {
+      "canonical": "Butoconazole",
+      "class": "imidazole",
+      "aliases": [
+        "gynazole"
+      ]
+    },
+    "bifonazole": {
+      "canonical": "Bifonazole",
+      "class": "imidazole",
+      "aliases": [
+        "mycospor"
+      ]
+    },
+    "isoconazole": {
+      "canonical": "Isoconazole",
+      "class": "imidazole",
+      "aliases": [
+        "travogen"
+      ]
+    },
+    "fenticonazole": {
+      "canonical": "Fenticonazole",
+      "class": "imidazole",
+      "aliases": [
+        "lomexin"
+      ]
+    },
+    "eberconazole": {
+      "canonical": "Eberconazole",
+      "class": "imidazole",
+      "aliases": []
+    },
+    "flutrimazole": {
+      "canonical": "Flutrimazole",
+      "class": "imidazole",
+      "aliases": []
+    },
+    "omoconazole": {
+      "canonical": "Omoconazole",
+      "class": "imidazole",
+      "aliases": []
+    },
+    "luliconazole": {
+      "canonical": "Luliconazole",
+      "class": "imidazole (topical)",
+      "aliases": [
+        "luzu",
+        "lulicon",
+        "nnd-502"
+      ]
+    },
+    "caspofungin": {
+      "canonical": "Caspofungin",
+      "class": "echinocandin",
+      "aliases": [
+        "cancidas",
+        "mk-0991",
+        "mk 0991",
+        "l-743872"
+      ]
+    },
+    "micafungin": {
+      "canonical": "Micafungin",
+      "class": "echinocandin",
+      "aliases": [
+        "mycamine",
+        "funguard",
+        "fk463",
+        "fk 463"
+      ]
+    },
+    "anidulafungin": {
+      "canonical": "Anidulafungin",
+      "class": "echinocandin",
+      "aliases": [
+        "eraxis",
+        "ecalta",
+        "ly303366",
+        "ly 303366",
+        "v-echinocandin"
+      ]
+    },
+    "rezafungin": {
+      "canonical": "Rezafungin",
+      "class": "echinocandin (long-acting)",
+      "aliases": [
+        "rezzayo",
+        "cd101",
+        "cd-101",
+        "sp3025"
+      ]
+    },
+    "amphotericin b deoxycholate": {
+      "canonical": "Amphotericin B (conventional)",
+      "class": "polyene",
+      "aliases": [
+        "fungizone",
+        "amphotericin b deoxycholate",
+        "conventional amphotericin b",
+        "d-amb",
+        "damb"
+      ]
+    },
+    "liposomal amphotericin b": {
+      "canonical": "Liposomal Amphotericin B",
+      "class": "polyene (liposomal)",
+      "aliases": [
+        "ambisome",
+        "l-amb",
+        "lamb",
+        "liposomal amphotericin",
+        "amphotericin b liposome",
+        "amphotericin b liposomal"
+      ]
+    },
+    "amphotericin b lipid complex": {
+      "canonical": "Amphotericin B Lipid Complex",
+      "class": "polyene (lipid complex)",
+      "aliases": [
+        "abelcet",
+        "ablc",
+        "amphotericin b lipid"
+      ]
+    },
+    "amphotericin b colloidal dispersion": {
+      "canonical": "Amphotericin B Colloidal Dispersion",
+      "class": "polyene (colloidal)",
+      "aliases": [
+        "amphotec",
+        "abcd",
+        "amphocil"
+      ]
+    },
+    "oral encochleated amphotericin b": {
+      "canonical": "Oral Encochleated Amphotericin B",
+      "class": "polyene (oral encochleated)",
+      "aliases": [
+        "mat2203",
+        "mat-2203",
+        "encochleated amphotericin b",
+        "cams"
+      ]
+    },
+    "nystatin": {
+      "canonical": "Nystatin",
+      "class": "polyene",
+      "aliases": [
+        "mycostatin",
+        "nilstat",
+        "nystan",
+        "nystatin lf"
+      ]
+    },
+    "natamycin": {
+      "canonical": "Natamycin",
+      "class": "polyene",
+      "aliases": [
+        "natacyn",
+        "pimaricin"
+      ]
+    },
+    "terbinafine": {
+      "canonical": "Terbinafine",
+      "class": "allylamine",
+      "aliases": [
+        "lamisil",
+        "terbinafin",
+        "sf 86-327"
+      ]
+    },
+    "naftifine": {
+      "canonical": "Naftifine",
+      "class": "allylamine",
+      "aliases": [
+        "naftin"
+      ]
+    },
+    "butenafine": {
+      "canonical": "Butenafine",
+      "class": "benzylamine",
+      "aliases": [
+        "mentax",
+        "lotrimin ultra"
+      ]
+    },
+    "amorolfine": {
+      "canonical": "Amorolfine",
+      "class": "morpholine",
+      "aliases": [
+        "loceryl"
+      ]
+    },
+    "flucytosine": {
+      "canonical": "Flucytosine",
+      "class": "pyrimidine analogue",
+      "aliases": [
+        "ancobon",
+        "5-fc",
+        "5fc",
+        "5-fluorocytosine"
+      ]
+    },
+    "griseofulvin": {
+      "canonical": "Griseofulvin",
+      "class": "benzofuran",
+      "aliases": [
+        "grifulvin",
+        "gris-peg",
+        "fulcin"
+      ]
+    },
+    "ciclopirox": {
+      "canonical": "Ciclopirox",
+      "class": "hydroxypyridone",
+      "aliases": [
+        "penlac",
+        "loprox",
+        "batrafen",
+        "ciclopirox olamine"
+      ]
+    },
+    "tavaborole": {
+      "canonical": "Tavaborole",
+      "class": "benzoxaborole",
+      "aliases": [
+        "kerydin",
+        "an2690",
+        "an-2690"
+      ]
+    },
+    "tolnaftate": {
+      "canonical": "Tolnaftate",
+      "class": "thiocarbamate",
+      "aliases": [
+        "tinactin"
+      ]
+    },
+    "undecylenic acid": {
+      "canonical": "Undecylenic Acid",
+      "class": "fatty acid",
+      "aliases": [
+        "undecenoic acid"
+      ]
+    },
+    "selenium sulfide": {
+      "canonical": "Selenium Sulfide",
+      "class": "topical keratolytic",
+      "aliases": [
+        "selsun"
+      ]
+    },
+    "potassium iodide": {
+      "canonical": "Potassium Iodide",
+      "class": "halide",
+      "aliases": [
+        "ski",
+        "saturated solution of potassium iodide",
+        "sski"
+      ]
+    },
+    "olorofim": {
+      "canonical": "Olorofim",
+      "class": "orotomide (DHODH inhibitor)",
+      "aliases": [
+        "f901318",
+        "f-901318"
+      ]
+    },
+    "fosmanogepix": {
+      "canonical": "Fosmanogepix",
+      "class": "Gwt1 inhibitor",
+      "aliases": [
+        "manogepix",
+        "apx001",
+        "apx-001",
+        "apx001a",
+        "e1211",
+        "pf-07842805"
+      ]
+    },
+    "ibrexafungerp": {
+      "canonical": "Ibrexafungerp",
+      "class": "triterpenoid glucan synthase inhibitor",
+      "aliases": [
+        "brexafemme",
+        "scy-078",
+        "scy078",
+        "mk-3118"
+      ]
+    },
+    "nikkomycin z": {
+      "canonical": "Nikkomycin Z",
+      "class": "chitin synthase inhibitor",
+      "aliases": [
+        "nikkomycin"
+      ]
+    },
+    "ati-2307": {
+      "canonical": "ATI-2307",
+      "class": "mitochondrial inhibitor",
+      "aliases": [
+        "ati2307",
+        "t-2307"
+      ]
+    }
   },
-
   "exclusions": {
     "_note": "Strings that stem-matching would wrongly resolve to an antifungal asset. Kept explicitly rather than relying on the allowlist alone, so normalize/programs.py can report 'matched an exclusion' as a distinct outcome from 'matched nothing' -- those mean different things when reviewing the unresolved rate.",
     "names": [
-      "omeprazole", "esomeprazole", "lansoprazole", "dexlansoprazole", "pantoprazole", "rabeprazole",
-      "metronidazole", "tinidazole", "ornidazole", "secnidazole", "benznidazole",
-      "sulfamethoxazole", "trimethoprim-sulfamethoxazole", "cotrimoxazole", "sulfamethoxazole-trimethoprim",
-      "letrozole", "anastrozole", "vorozole", "fadrozole",
-      "aripiprazole", "brexpiprazole", "cariprazine",
-      "albendazole", "mebendazole", "thiabendazole", "fenbendazole", "levamisole",
-      "cilostazole", "rifampin", "rifampicin", "midazolam", "carbamazepine",
-      "atovaquone", "pentamidine", "dapsone", "primaquine", "pyrimethamine",
-      "trimetrexate", "leucovorin", "leucovorin calcium", "clindamycin", "azithromycin"
+      "omeprazole",
+      "esomeprazole",
+      "lansoprazole",
+      "dexlansoprazole",
+      "pantoprazole",
+      "rabeprazole",
+      "metronidazole",
+      "tinidazole",
+      "ornidazole",
+      "secnidazole",
+      "benznidazole",
+      "sulfamethoxazole",
+      "trimethoprim-sulfamethoxazole",
+      "cotrimoxazole",
+      "sulfamethoxazole-trimethoprim",
+      "letrozole",
+      "anastrozole",
+      "vorozole",
+      "fadrozole",
+      "aripiprazole",
+      "brexpiprazole",
+      "cariprazine",
+      "albendazole",
+      "mebendazole",
+      "thiabendazole",
+      "fenbendazole",
+      "levamisole",
+      "cilostazole",
+      "rifampin",
+      "rifampicin",
+      "midazolam",
+      "carbamazepine",
+      "atovaquone",
+      "pentamidine",
+      "dapsone",
+      "primaquine",
+      "pyrimethamine",
+      "trimetrexate",
+      "leucovorin",
+      "leucovorin calcium",
+      "clindamycin",
+      "azithromycin"
     ]
   },
-
   "non_assets": {
     "_note": "Arm labels that are not an asset at all. A placebo arm must never become a program -- 114 distinct placebo-like intervention strings appeared in this corpus across 319 instances, and without this list 'Placebo' would resolve to one of the largest programs in the landscape. Matched as a whole-string or leading-token rule, never as a substring: 'placebo-controlled voriconazole' is a voriconazole arm.",
     "patterns": [
-      "placebo", "matching placebo", "placebo comparator", "vehicle", "vehicle control",
-      "saline", "normal saline", "physiological saline", "sodium chloride",
-      "standard of care", "soc", "standard therapy", "standard treatment", "usual care",
-      "no treatment", "no intervention", "control", "control group", "untreated control",
-      "sham", "sham comparator", "water", "sterile water", "dextrose", "d5w",
-      "best available therapy", "bat", "investigator choice", "physician's choice",
-      "observation", "blood draw", "questionnaire", "survey", "education",
-      "laboratory biomarker analysis", "pharmacological study", "placebo oral tablet"
+      "placebo",
+      "matching placebo",
+      "placebo comparator",
+      "vehicle",
+      "vehicle control",
+      "saline",
+      "normal saline",
+      "physiological saline",
+      "sodium chloride",
+      "standard of care",
+      "soc",
+      "standard therapy",
+      "standard treatment",
+      "usual care",
+      "no treatment",
+      "no intervention",
+      "control",
+      "control group",
+      "untreated control",
+      "sham",
+      "sham comparator",
+      "water",
+      "sterile water",
+      "dextrose",
+      "d5w",
+      "best available therapy",
+      "bat",
+      "investigator choice",
+      "physician's choice",
+      "observation",
+      "blood draw",
+      "questionnaire",
+      "survey",
+      "education",
+      "laboratory biomarker analysis",
+      "pharmacological study",
+      "placebo oral tablet"
     ]
+  },
+  "sponsor_aliases": {
+    "_note": "Same commercial sponsor under two legal names. Added ONLY from observed corpus evidence, never from string similarity -- normalize_sponsor() deliberately refuses to guess that two differently-named entities are one company, because that guess is the over-merging this module exists to avoid. Both entries below were visible as split programs for the same asset in the first run.",
+    "f2g biotech": "f2g",
+    "_not_merged": "Rezafungin appears under both Cidara Therapeutics and Mundipharma Research and is CORRECTLY left split: Cidara holds US rights, Mundipharma the ex-US licence. Two commercial programs for one molecule is a real market structure, not a data error, and merging them would hide a licensing deal that a BD audience would specifically want to see.",
+    "viamet": "mycovia pharmaceuticals"
   }
 }
