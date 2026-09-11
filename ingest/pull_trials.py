@@ -1,15 +1,74 @@
 """
-Ingest, part 1: pull raw trial JSON from CT.gov API v2 for one therapeutic
-area and write one file per trial to data/raw/.
+Ingest: pull raw trial JSON from CT.gov API v2 and write one file per trial
+to data/raw/, plus a manifest recording which query matched which trial.
 
 No parsing, no database, no LLM calls. This script's only job is to land
-raw, traceable JSON on disk.
+raw, traceable JSON on disk and record how it got there.
 
 Usage:
-    python pull_trials.py --area antifungals
-    python pull_trials.py --area antifungals --refresh
-    python pull_trials.py --area antifungals --max-pages 1   # smoke test
+    python ingest/pull_trials.py --area antifungals
+    python ingest/pull_trials.py --area all
+    python ingest/pull_trials.py --area all --dry-run       # counts only, no files
+    python ingest/pull_trials.py --area antibacterials --max-per-term 100
+    python ingest/pull_trials.py --area antifungals --refresh
+
+
+WHAT CHANGED FROM v1, AND WHY
+=============================
+
+v1 sent one request per area with query.cond AND query.intr in the same
+call. Three things were wrong with that, and all three were invisible
+until the scope widened.
+
+1. AND semantics silently dropped the most interesting trials.
+   A trial had to match a listed condition AND a listed intervention to be
+   ingested at all. Any trial whose intervention is a development code --
+   APX001, F901318, SPR720 -- matched no intervention term and was
+   discarded. Those are novel assets, which are the highest-value rows in a
+   competitive landscape. v1's ingest was filtering out the trials the tool
+   exists to find, and reported no error while doing it.
+
+   v2 issues separate queries per term group and unions the results. Wide
+   net at ingest (recall); precision happens downstream in retrieve/ via
+   structured scoring. v1 conflated the two stages into one restrictive
+   query.
+
+2. Area membership was unrecoverable.
+   v1 recorded nothing about which query matched a trial, so build_db.py
+   had to be told the area via a --flag that it then applied to every file
+   in data/raw/. With one area that is harmless; with three it silently
+   relabels the whole corpus. See the trial_areas comment in schema.sql.
+
+   v2 writes data/raw/_manifest.json at pull time, recording per trial
+   which areas matched it and via which specific terms.
+
+3. Dead config terms were undetectable.
+   v1 bug #6 was a mismatch between the planner's stated scope and the
+   corpus's actual coverage, and the scope doc recorded the mitigation as
+   "manual discipline." Per-term querying makes coverage a measurement:
+   every term's hit count is recorded in the manifest, so a typo or a
+   discontinued code name shows up as a zero rather than as a quietly
+   narrower corpus.
+
+
+ON QUERY VOLUME
+===============
+Per-term querying is what produces the coverage data, but some condition
+terms are enormous -- "tuberculosis", "HIV infection", and "influenza" each
+match thousands of studies, the large majority observational. Pulling them
+whole would bury a drug-development landscape in epidemiology.
+
+Two controls, both visible in the run summary:
+  - Condition and pathogen queries carry study-type filters from the area
+    config (interventional, drug/biological) so observational studies never
+    enter the corpus. Intervention queries are already specific enough not
+    to need them.
+  - --max-per-term caps results per term. A term that hits the cap is
+    reported as CAPPED, because a truncated pull is a sampling decision and
+    sampling decisions that aren't visible become wrong conclusions later.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
@@ -17,51 +76,77 @@ import sys
 import time
 from pathlib import Path
 
-# common/ is a sibling of ingest/ — add repo root so it's importable
-# without turning this into an installed package.
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common.ctgov_client import CTGovClient  # noqa: E402
+from common.paths import QUERY_CONFIG_PATH, RAW_DIR, RAW_MANIFEST_PATH  # noqa: E402
 
 PAGE_SIZE = 100
+DEFAULT_MAX_PER_TERM = 300
 
-HERE = Path(__file__).parent
-DEFAULT_CONFIG_PATH = HERE / "query_config.json"
-DEFAULT_OUT_DIR = HERE.parent / "data" / "raw"
+# Applied to condition and pathogen queries only. Interventional studies of
+# drugs or biologics -- which is what a development landscape is about.
+# Observational cohorts, registries, and expanded-access records are real
+# data but they are not programs, and including them would inflate every
+# count the dashboard reports.
+DEFAULT_STUDY_FILTERS = {"filter.advanced": "AREA[StudyType]INTERVENTIONAL"}
 
 
-def load_query_spec(area: str, config_path: Path) -> dict:
+def load_config(config_path: Path) -> dict:
     with open(config_path) as f:
         config = json.load(f)
-    if area not in config:
-        available = ", ".join(config.keys())
-        raise ValueError(f"Unknown area '{area}'. Available: {available}")
-    return config[area]
+    # Keys beginning with underscore are documentation, not areas.
+    return {k: v for k, v in config.items() if not k.startswith("_")}
 
 
-def build_params(spec: dict, page_token: str | None) -> dict:
+def resolve_areas(requested: str, config: dict) -> list[str]:
+    if requested == "all":
+        return list(config.keys())
+    if requested not in config:
+        available = ", ".join(list(config.keys()) + ["all"])
+        raise ValueError(f"Unknown area '{requested}'. Available: {available}")
+    return [requested]
+
+
+def quote_term(term: str) -> str:
     """
-    Combine condition terms and intervention terms, each OR'd internally,
-    ANDed against each other. CT.gov v2 essential query syntax accepts
-    'term1 OR term2' within a single field param.
+    CT.gov essential syntax treats whitespace as a token separator, so a
+    multi-word term has to be quoted or it is parsed as separate terms and
+    the query silently broadens. "ventilator-associated pneumonia" without
+    quotes is not an error; it is a different, much larger query.
     """
-    params = {
-        "pageSize": PAGE_SIZE,
-        "format": "json",
-    }
+    return f'"{term}"' if " " in term else term
 
-    if spec.get("condition_terms"):
-        params["query.cond"] = " OR ".join(spec["condition_terms"])
 
-    if spec.get("intervention_terms"):
-        params["query.intr"] = " OR ".join(spec["intervention_terms"])
+def build_term_queries(area: str, spec: dict) -> list[dict]:
+    """
+    One query per term. Returns dicts of {group, term, params}.
 
-    if spec.get("status_filter"):
-        params["filter.overallStatus"] = spec["status_filter"]
+    `group` lands in the manifest as trial_areas.matched_via, so it uses
+    exactly the vocabulary that column expects: 'condition' or
+    'intervention'. Pathogen terms are queried against the condition field
+    but recorded under their own group, because pathogen is a distinct
+    retrieval criterion downstream and collapsing it into 'condition' here
+    would throw that distinction away at the only point it is observable.
+    """
+    study_filters = spec.get("study_filters", DEFAULT_STUDY_FILTERS)
+    queries: list[dict] = []
 
-    if page_token:
-        params["pageToken"] = page_token
+    for group, field, terms, filtered in (
+        ("condition", "query.cond", spec.get("condition_terms", []), True),
+        ("pathogen", "query.cond", spec.get("pathogen_terms", []), True),
+        ("intervention", "query.intr", spec.get("intervention_terms", []), False),
+    ):
+        for term in terms or []:
+            params = {field: quote_term(term)}
+            if filtered:
+                params.update(study_filters)
+            if spec.get("status_filter"):
+                params["filter.overallStatus"] = spec["status_filter"]
+            queries.append(
+                {"area": area, "group": group, "term": term, "params": params}
+            )
 
-    return params
+    return queries
 
 
 def extract_nct_id(study: dict) -> str:
@@ -71,88 +156,261 @@ def extract_nct_id(study: dict) -> str:
         raise ValueError("Study record missing expected nctId field — check API schema")
 
 
-def write_trial_json(study: dict, out_dir: Path, refresh: bool) -> str:
-    """Returns 'written' or 'skipped'."""
+def write_trial_json(study: dict, out_dir: Path, refresh: bool) -> tuple[str, str]:
+    """Returns (nct_id, 'written' | 'skipped')."""
     nct_id = extract_nct_id(study)
     out_path = out_dir / f"{nct_id}.json"
 
     if out_path.exists() and not refresh:
-        return "skipped"
+        return nct_id, "skipped"
 
     with open(out_path, "w") as f:
         json.dump(study, f, indent=2)
-    return "written"
+    return nct_id, "written"
 
 
-def run(area: str, config_path: Path, out_dir: Path, refresh: bool, max_pages: int | None):
-    spec = load_query_spec(area, config_path)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    client = CTGovClient()
+def load_manifest(path: Path) -> dict:
+    """
+    Manifest shape:
 
-    print(f"Area: {area}")
-    print(f"Condition terms: {spec.get('condition_terms')}")
-    print(f"Intervention terms: {spec.get('intervention_terms')}")
-    print(f"Output dir: {out_dir}")
-    print()
+        {
+          "generated_at": "...",
+          "trials":    {nct_id: {area: {group: [term, ...]}}},
+          "term_hits": {area: {group: {term: count}}},
+          "capped":    {area: {group: [term, ...]}}
+        }
 
-    page_token = None
-    page_num = 0
-    total_found = 0
+    Loaded and merged rather than overwritten, because pulling a second
+    area must not erase the first area's membership records. Overwriting is
+    the same class of mistake as v1's --area flag: it discards information
+    that only this stage of the pipeline ever has.
+    """
+    if not path.exists():
+        return {"generated_at": None, "trials": {}, "term_hits": {}, "capped": {}}
+    with open(path) as f:
+        data = json.load(f)
+    for key in ("trials", "term_hits", "capped"):
+        data.setdefault(key, {})
+    return data
+
+
+def record_match(manifest: dict, nct_id: str, area: str, group: str, term: str) -> None:
+    trial = manifest["trials"].setdefault(nct_id, {})
+    groups = trial.setdefault(area, {})
+    terms = groups.setdefault(group, [])
+    if term not in terms:
+        terms.append(term)
+
+
+def save_manifest(manifest: dict, path: Path) -> None:
+    manifest["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(manifest, f, indent=2, sort_keys=True)
+
+
+def pull_term(
+    client: CTGovClient,
+    query: dict,
+    out_dir: Path,
+    manifest: dict,
+    refresh: bool,
+    max_per_term: int,
+    dry_run: bool,
+) -> dict:
+    """Page through one term's results. Returns per-term stats."""
+    area, group, term = query["area"], query["group"], query["term"]
+
+    seen = 0
     written = 0
     skipped = 0
+    page_token = None
+    capped = False
 
     while True:
-        page_num += 1
-        params = build_params(spec, page_token)
-        print(f"Fetching page {page_num}...")
-        data = client.fetch_page(params)
+        params = {"pageSize": PAGE_SIZE, "format": "json", **query["params"]}
+        if page_token:
+            params["pageToken"] = page_token
 
+        data = client.fetch_page(params)
         studies = data.get("studies", [])
-        total_found += len(studies)
+        if not studies:
+            break
 
         for study in studies:
+            if seen >= max_per_term:
+                capped = True
+                break
             try:
-                result = write_trial_json(study, out_dir, refresh)
-                if result == "written":
-                    written += 1
+                if dry_run:
+                    nct_id = extract_nct_id(study)
+                    status = "skipped"
                 else:
-                    skipped += 1
+                    nct_id, status = write_trial_json(study, out_dir, refresh)
             except ValueError as exc:
-                print(f"  WARNING: skipping malformed record — {exc}")
+                print(f"    WARNING: malformed record skipped — {exc}")
+                continue
 
-        print(f"  {len(studies)} studies on this page "
-              f"(running total: written={written}, skipped={skipped})")
+            record_match(manifest, nct_id, area, group, term)
+            seen += 1
+            if status == "written":
+                written += 1
+            else:
+                skipped += 1
 
+        if capped:
+            break
         page_token = data.get("nextPageToken")
         if not page_token:
             break
-        if max_pages and page_num >= max_pages:
-            print(f"Stopping after {max_pages} page(s) (--max-pages set).")
-            break
 
+    manifest["term_hits"].setdefault(area, {}).setdefault(group, {})[term] = seen
+    if capped:
+        capped_list = manifest["capped"].setdefault(area, {}).setdefault(group, [])
+        if term not in capped_list:
+            capped_list.append(term)
+
+    return {"seen": seen, "written": written, "skipped": skipped, "capped": capped}
+
+
+def run(
+    requested_area: str,
+    config_path: Path,
+    out_dir: Path,
+    manifest_path: Path,
+    refresh: bool,
+    max_per_term: int,
+    dry_run: bool,
+) -> int:
+    config = load_config(config_path)
+    areas = resolve_areas(requested_area, config)
+
+    if not dry_run:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+    client = CTGovClient()
+    manifest = load_manifest(manifest_path)
+
+    print(f"Areas:        {', '.join(areas)}")
+    print(f"Output dir:   {out_dir}")
+    print(f"Manifest:     {manifest_path}")
+    print(f"Max per term: {max_per_term}")
+    print(f"Mode:         {'DRY RUN (no files written)' if dry_run else 'WRITE'}")
     print()
+
+    totals = {"written": 0, "skipped": 0, "terms": 0, "dead": [], "capped": []}
+
+    for area in areas:
+        queries = build_term_queries(area, config[area])
+        print(f"=== {area} — {len(queries)} term queries ===")
+
+        for i, query in enumerate(queries, 1):
+            label = f"[{i:>3}/{len(queries)}] {query['group']:<12} {query['term']}"
+            try:
+                stats = pull_term(
+                    client, query, out_dir, manifest, refresh, max_per_term, dry_run
+                )
+            except RuntimeError as exc:
+                # A term that fails after the client's retries is reported
+                # and the run continues. Aborting the whole ingest because
+                # one of 160 terms had a bad minute costs more than it saves.
+                print(f"{label}  REQUEST FAILED — {exc}")
+                continue
+
+            flag = "  CAPPED" if stats["capped"] else ""
+            if stats["seen"] == 0:
+                flag = "  DEAD TERM (zero hits)"
+                totals["dead"].append(f"{area}/{query['group']}/{query['term']}")
+            if stats["capped"]:
+                totals["capped"].append(f"{area}/{query['group']}/{query['term']}")
+
+            print(
+                f"{label:<58} {stats['seen']:>4} hits  "
+                f"(+{stats['written']} new){flag}"
+            )
+
+            totals["written"] += stats["written"]
+            totals["skipped"] += stats["skipped"]
+            totals["terms"] += 1
+
+        print()
+
+    if not dry_run:
+        save_manifest(manifest, manifest_path)
+
+    unique_trials = len(manifest["trials"])
+
     print("=== Run summary ===")
-    print(f"Timestamp:      {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Pages fetched:  {page_num}")
-    print(f"Trials found:   {total_found}")
-    print(f"Files written:  {written}")
-    print(f"Files skipped:  {skipped} (already existed; use --refresh to overwrite)")
+    print(f"Timestamp:       {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Terms queried:   {totals['terms']}")
+    print(f"Files written:   {totals['written']}")
+    print(f"Already present: {totals['skipped']} (use --refresh to overwrite)")
+    print(f"Unique trials in manifest: {unique_trials}")
+
+    if totals["capped"]:
+        print()
+        print(f"CAPPED at --max-per-term={max_per_term} ({len(totals['capped'])} terms):")
+        for term in totals["capped"]:
+            print(f"  {term}")
+        print("  These pulls are truncated samples, not complete term coverage.")
+
+    if totals["dead"]:
+        print()
+        print(f"DEAD TERMS — zero registry hits ({len(totals['dead'])}):")
+        for term in totals["dead"]:
+            print(f"  {term}")
+        print("  Each is a typo, a renamed compound, or a term the registry")
+        print("  does not index. Fix or remove them in ingest/query_config.json;")
+        print("  tests/test_coverage.py fails while any remain.")
+
+    return 0
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--area", required=True, help="Key from query_config.json, e.g. 'antifungals'")
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH, help="Path to query_config.json")
-    parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="Directory to write raw JSON files")
-    parser.add_argument("--refresh", action="store_true", help="Overwrite existing files instead of skipping them")
-    parser.add_argument("--max-pages", type=int, default=None, help="Limit pages fetched — useful for a smoke test")
+    parser.add_argument(
+        "--area",
+        required=True,
+        help="Key from query_config.json, or 'all' for every configured area.",
+    )
+    parser.add_argument("--config", type=Path, default=QUERY_CONFIG_PATH)
+    parser.add_argument("--out-dir", type=Path, default=RAW_DIR)
+    parser.add_argument("--manifest", type=Path, default=RAW_MANIFEST_PATH)
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Overwrite existing raw files instead of skipping them.",
+    )
+    parser.add_argument(
+        "--max-per-term",
+        type=int,
+        default=DEFAULT_MAX_PER_TERM,
+        help=f"Cap results per term (default {DEFAULT_MAX_PER_TERM}). "
+        "Capped terms are reported in the run summary.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Query and report counts without writing files or the manifest. "
+        "Use this to size the corpus and find dead terms before committing disk.",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     try:
-        run(args.area, args.config, args.out_dir, args.refresh, args.max_pages)
+        sys.exit(
+            run(
+                args.area,
+                args.config,
+                args.out_dir,
+                args.manifest,
+                args.refresh,
+                args.max_per_term,
+                args.dry_run,
+            )
+        )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
