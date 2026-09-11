@@ -1,53 +1,105 @@
 {
   "_README": {
-    "purpose": "Ingest queries, one entry per therapeutic area. Read by ingest/pull_trials.py to build CT.gov API v2 queries, and by tests/test_coverage.py to verify every term below actually returns trials.",
-    "combine": "Controls how condition/pathogen terms relate to intervention terms. 'or' issues SEPARATE queries per term group and unions the results. 'and' requires a trial to match both groups in one query, which is what v1 did. v2 defaults to 'or' -- see the note below, this is a deliberate change.",
-    "why_or_not_and": "v1 sent query.cond AND query.intr in a single request, so a trial had to match both a listed condition AND a listed intervention to be ingested at all. That systematically excluded any trial whose intervention is a development code rather than a known drug name -- APX001, F901318, SPR720. Those are novel assets, which are the single most competitively interesting rows in a landscape view. v1's ingest was quietly filtering out the trials the tool exists to find. v2 casts a wide net at ingest (recall) and does the precision work in retrieve/ via structured scoring (precision). Conflating the two stages is what caused the gap.",
-    "pathogen_terms": "Queried against the condition field alongside condition_terms, but tracked separately because pathogen is a first-class retrieval criterion in anti-infectives, not a synonym for indication. Two trials both labelled 'pneumonia' can be in unrelated competitive markets depending on the organism and its resistance profile. See docs/SCOPE-v2.md, correction #5.",
-    "term_accuracy": "Every intervention term is a real compound. tests/test_coverage.py asserts non-zero registry hits for each one, so a typo or a discontinued code name fails a test rather than silently narrowing the corpus -- which is how v1 bug #6 hid."
+    "purpose": "Ingest queries, one entry per therapeutic area. Read by ingest/pull_trials.py to build CT.gov API v2 queries, and by tests/test_coverage.py to verify every term actually returns trials.",
+
+    "scope_decision": "v2 covers ONE therapeutic area completely rather than three by sample. The earlier plan was all anti-infectives, justified as resolving v1 bug #6 by widening the data to match what the planner prompt already claimed. Narrowing the prompt to match the data resolves that bug equally well -- the requirement was only ever that stated scope and actual coverage agree -- and it buys three things widening did not: (1) counts become totals instead of lower bounds, which is what 'most crowded indication' depends on to mean anything; (2) the hand-curated asset alias dictionary drops from 150+ compounds to roughly 25-30, making it reviewable rather than aspirational; (3) the corpus is small enough to commit as a demo snapshot. antibacterials and antivirals stay in this file with enabled:false so the narrowing is visible and reversible rather than deleted.",
+
+    "enabled": "Only areas with enabled:true are ingested by --area all, and only those are enforced by tests/test_coverage.py. A disabled area is a recorded intention, not a claim of coverage. The query planner's scope prompt must be derived from the ENABLED areas -- deriving it from this file's keys is how v1 bug #6 happened.",
+
+    "combine": "'or' issues SEPARATE queries per term group and unions the results. 'and' requires a trial to match both groups in one query, which is what v1 did. v2 uses 'or' -- see why_or_not_and.",
+
+    "why_or_not_and": "v1 sent query.cond AND query.intr in a single request, so a trial had to match both a listed condition AND a listed intervention to be ingested at all. That systematically excluded every trial whose intervention is a development code rather than a known drug name -- APX001, F901318, SCY-078. Those are novel assets, the single most competitively interesting rows in a landscape view. v1's ingest was quietly filtering out the trials the tool exists to find. v2 casts a wide net at ingest (recall) and does precision work in retrieve/ via structured scoring.",
+
+    "pathogen_terms": "Queried against the condition field alongside condition_terms, but tracked separately because pathogen is a first-class retrieval criterion in anti-infectives, not a synonym for indication. Two trials both labelled 'pneumonia' can be in unrelated competitive markets depending on organism and resistance profile. See docs/SCOPE-v2.md correction #5.",
+
+    "why_no_febrile_neutropenia": "Empiric and prophylactic antifungal therapy is largely studied in febrile neutropenia, so it looks like an obvious condition term. It is deliberately absent. With the interventional filter it still returns well over a thousand trials that are mostly antibacterial, G-CSF, and supportive care -- and because this area is now meant to be COMPLETE rather than sampled, corpus pollution directly corrupts the 'N relevant trials' and crowding counts the dashboard reports. Antifungal prophylaxis trials are reached through the intervention terms (fluconazole, posaconazole, micafungin) instead, which is both more precise and correctly attributed.",
+
+    "known_zero": "Terms verified to return zero, kept with a written reason. Enforced by tests/test_coverage.py, which requires a real explanation rather than allowing a silent exemption. Deleting a zero-hit term destroys the evidence that the question was asked; downgrading the assertion to a warning means nobody reads it."
   },
 
   "antifungals": {
-    "description": "Antifungal trials. v1's seed area, kept under the same key so existing trial_areas rows remain valid.",
+    "description": "Antifungal trials. The single enabled area in v2, covered completely rather than sampled -- run with a high --max-per-term so the run summary can report zero capped terms, which is what makes completeness a verified claim instead of an assumption.",
+    "enabled": true,
     "combine": "or",
+
     "condition_terms": [
       "candidiasis",
       "invasive candidiasis",
       "candidemia",
+      "oropharyngeal candidiasis",
+      "esophageal candidiasis",
+      "vulvovaginal candidiasis",
+      "candiduria",
       "aspergillosis",
       "invasive aspergillosis",
+      "chronic pulmonary aspergillosis",
+      "allergic bronchopulmonary aspergillosis",
       "invasive fungal infection",
       "invasive fungal disease",
+      "invasive mold infection",
       "cryptococcosis",
       "cryptococcal meningitis",
       "mucormycosis",
       "coccidioidomycosis",
       "histoplasmosis",
+      "blastomycosis",
+      "sporotrichosis",
+      "talaromycosis",
+      "fusariosis",
       "pneumocystis pneumonia",
       "onychomycosis",
+      "tinea pedis",
+      "tinea capitis",
+      "tinea corporis",
+      "pityriasis versicolor",
+      "dermatomycosis",
       "fungal keratitis",
-      "vulvovaginal candidiasis"
+      "fungal endophthalmitis",
+      "fungal sinusitis",
+      "mycetoma"
     ],
+
     "pathogen_terms": [
       "Candida auris",
       "Candida albicans",
       "Candida glabrata",
       "Nakaseomyces glabratus",
+      "Candida parapsilosis",
+      "Candida tropicalis",
+      "Candida krusei",
       "Aspergillus fumigatus",
+      "Aspergillus flavus",
       "Cryptococcus neoformans",
       "Pneumocystis jirovecii",
-      "Rhizopus"
+      "Rhizopus",
+      "Mucorales",
+      "Fusarium",
+      "Scedosporium",
+      "Trichophyton rubrum",
+      "Histoplasma capsulatum",
+      "Coccidioides immitis",
+      "Talaromyces marneffei",
+      "Malassezia"
     ],
-    "known_zero": {
-      "pathogen/Candida glabrata": "Returns zero interventional trials on the condition field, confirmed by dry run. Two candidate explanations and the config tests both rather than assuming either: (a) the species was reclassified as Nakaseomyces glabratus in 2022, so registry indexing may have moved -- 'Nakaseomyces glabratus' is now queried alongside it, and if that term returns hits the rename is the cause; (b) interventional trials simply label the condition at genus or syndrome level ('Candidiasis', 'Invasive Candidiasis') rather than naming this species, which is consistent with C. albicans returning hits mainly through vulvovaginal candidiasis trials where the species IS named. The term is kept because it costs one request and would start matching the moment a trial labels it, and removing it would delete the evidence that the question was asked."
-    },
+
     "intervention_terms": [
       "fluconazole",
       "itraconazole",
+      "SUBA-itraconazole",
       "voriconazole",
       "posaconazole",
       "isavuconazole",
+      "ketoconazole",
+      "clotrimazole",
+      "miconazole",
+      "efinaconazole",
+      "luliconazole",
+      "oteseconazole",
+      "opelconazole",
       "amphotericin",
+      "liposomal amphotericin B",
+      "nystatin",
+      "natamycin",
       "echinocandin",
       "caspofungin",
       "micafungin",
@@ -57,15 +109,24 @@
       "olorofim",
       "fosmanogepix",
       "flucytosine",
+      "griseofulvin",
       "terbinafine",
-      "oteseconazole",
-      "opelconazole"
+      "butenafine",
+      "ciclopirox",
+      "tavaborole",
+      "nikkomycin"
     ],
+
+    "known_zero": {
+      "pathogen/Candida glabrata": "Returned zero interventional trials on the condition field in the first dry run. Two candidate explanations, and the config now tests both rather than assuming either: (a) the species was reclassified as Nakaseomyces glabratus in 2022, so registry indexing may have moved -- that term is queried alongside this one, and hits on it confirm the rename as the cause; (b) interventional trials label the condition at genus or syndrome level ('Candidiasis', 'Invasive Candidiasis') rather than naming this species, consistent with C. albicans returning hits mainly via vulvovaginal candidiasis trials where the species IS named. Kept because it costs one request, would begin matching the moment a trial labels it, and removing it would delete the record that the question was asked."
+    },
+
     "status_filter": null
   },
 
   "antibacterials": {
-    "description": "Antibacterial trials, including the WHO priority resistant-organism space and TB.",
+    "description": "DISABLED in v2. Retained so the scope narrowing is visible and reversible. Enabling this requires extending normalize/asset_aliases.json to cover these compounds AND widening the query planner's scope prompt in the same change -- doing one without the other is v1 bug #6.",
+    "enabled": false,
     "combine": "or",
     "condition_terms": [
       "bacterial pneumonia",
@@ -137,7 +198,8 @@
   },
 
   "antivirals": {
-    "description": "Antiviral trials: respiratory, hepatitis, HIV, and transplant-associated viral disease.",
+    "description": "DISABLED in v2. Retained so the scope narrowing is visible and reversible. Same enabling conditions as antibacterials.",
+    "enabled": false,
     "combine": "or",
     "condition_terms": [
       "influenza",

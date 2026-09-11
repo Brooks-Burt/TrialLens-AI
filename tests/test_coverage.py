@@ -74,10 +74,27 @@ TERM_GROUPS = {
 # helpers
 # --------------------------------------------------------------------------
 
-def load_config() -> dict:
+def load_config(enabled_only: bool = False) -> dict:
+    """
+    `enabled_only` splits the suite deliberately.
+
+    STRUCTURAL tests run against ALL areas, including disabled ones. A typo
+    or a duplicate in antibacterials is still a defect today -- it is just a
+    defect that has not been ingested yet, and the whole point of keeping
+    those areas in the file is that re-enabling them should be a one-line
+    change rather than a debugging session.
+
+    COVERAGE tests run against enabled areas only, because a disabled area
+    has no manifest entries by definition. Enforcing coverage there would
+    fail permanently and the honest response would be to delete the
+    assertion, which is how a test suite stops being trusted.
+    """
     with open(QUERY_CONFIG_PATH) as f:
         config = json.load(f)
-    return {k: v for k, v in config.items() if not k.startswith("_")}
+    areas = {k: v for k, v in config.items() if not k.startswith("_")}
+    if enabled_only:
+        areas = {k: v for k, v in areas.items() if v.get("enabled", True) is not False}
+    return areas
 
 
 def load_manifest() -> dict | None:
@@ -124,6 +141,23 @@ def test_config_parses_and_has_required_fields():
 
         combine = spec.get("combine", "or")
         assert combine in ("or", "and"), f"{area}: combine must be 'or' or 'and', got {combine!r}"
+
+        # A truthy string like "false" would read as enabled. is_enabled()
+        # in ingest checks `is not False`, so only a real JSON boolean
+        # disables an area -- anything else silently ingests it.
+        enabled = spec.get("enabled", True)
+        assert isinstance(enabled, bool), (
+            f"{area}: enabled must be a JSON boolean, got {enabled!r}. "
+            "A non-boolean reads as enabled and the area is ingested anyway."
+        )
+
+    enabled_areas = [a for a, s in config.items()
+                     if s.get("enabled", True) is not False]
+    assert enabled_areas, (
+        "No area has enabled:true. '--area all' would ingest nothing and "
+        "every coverage test would skip, so the suite would report success "
+        "while checking no data at all."
+    )
 
 
 def test_no_duplicate_terms_within_an_area():
@@ -194,7 +228,7 @@ def test_every_configured_term_was_queried():
     pull -- which is the exact state v1 bug #6 lived in, except in reverse.
     """
     manifest = require_manifest()
-    config = load_config()
+    config = load_config(enabled_only=True)
     term_hits = manifest.get("term_hits", {})
     missing = [
         f"{area}/{group}/{term}"
@@ -225,7 +259,7 @@ def test_no_dead_terms():
     fails if an exemption is ever added without one.
     """
     manifest = require_manifest()
-    config = load_config()
+    config = load_config(enabled_only=True)
     term_hits = manifest.get("term_hits", {})
 
     dead = []
@@ -286,7 +320,7 @@ def test_known_zero_entries_are_documented():
 
 def test_every_area_has_trials():
     manifest = require_manifest()
-    config = load_config()
+    config = load_config(enabled_only=True)
     per_area: dict[str, int] = {area: 0 for area in config}
     for areas in manifest.get("trials", {}).values():
         for area in areas:

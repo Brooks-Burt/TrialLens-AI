@@ -6,11 +6,14 @@ No parsing, no database, no LLM calls. This script's only job is to land
 raw, traceable JSON on disk and record how it got there.
 
 Usage:
+    python ingest/pull_trials.py --area all --dry-run   # size it, find dead terms
+    python ingest/pull_trials.py --area all             # all ENABLED areas
     python ingest/pull_trials.py --area antifungals
-    python ingest/pull_trials.py --area all
-    python ingest/pull_trials.py --area all --dry-run       # counts only, no files
-    python ingest/pull_trials.py --area antibacterials --max-per-term 100
     python ingest/pull_trials.py --area antifungals --refresh
+
+`--area all` means all areas with enabled:true. v2 has one: antifungals.
+antibacterials and antivirals remain configured with enabled:false so the
+scope narrowing is visible and reversible; --include-disabled overrides.
 
 
 WHAT CHANGED FROM v1, AND WHY
@@ -51,21 +54,34 @@ until the scope widened.
    narrower corpus.
 
 
-ON QUERY VOLUME
-===============
-Per-term querying is what produces the coverage data, but some condition
-terms are enormous -- "tuberculosis", "HIV infection", and "influenza" each
-match thousands of studies, the large majority observational. Pulling them
-whole would bury a drug-development landscape in epidemiology.
+ON QUERY VOLUME, AND WHY THE CAP CHANGED MEANING
+================================================
 
-Two controls, both visible in the run summary:
-  - Condition and pathogen queries carry study-type filters from the area
-    config (interventional, drug/biological) so observational studies never
-    enter the corpus. Intervention queries are already specific enough not
-    to need them.
-  - --max-per-term caps results per term. A term that hits the cap is
-    reported as CAPPED, because a truncated pull is a sampling decision and
-    sampling decisions that aren't visible become wrong conclusions later.
+The first dry run covered three areas with --max-per-term 60 and capped 90
+of 162 terms -- 56%. That number is what forced the scope decision. Above
+roughly half, the cap is not protecting against a pathological term; it IS
+the sampling method, which means every crowding count the dashboard reports
+would have been a lower bound rather than a total. "Most crowded
+indication" computed over a 56%-truncated corpus measures the cap.
+
+v2 covers ONE area completely instead. The cap stays, set far above any
+real antifungal term, and its job is now only to stop a single
+unexpectedly enormous term from eating a run.
+
+Keeping it rather than removing it is deliberate. The run summary reports
+how many terms capped, so "0 of 86 terms capped" is a VERIFIED completeness
+claim. With no cap at all, completeness would be an assumption -- and an
+assumption is not something you can state to someone who asks how you know.
+
+Two controls remain, both visible in the run summary:
+  - Condition and pathogen queries carry a study-type filter
+    (interventional only), so observational cohorts and registries never
+    enter the corpus. They are real data but they are not programs, and
+    they would inflate every count. Intervention queries are specific
+    enough not to need the filter.
+  - --sort decides WHICH results a capped term keeps. Unspecified order is
+    not neutral when terms cap: it lets CT.gov's default silently choose the
+    corpus. See DEFAULT_SORT.
 """
 
 from __future__ import annotations
@@ -82,13 +98,23 @@ from common.paths import QUERY_CONFIG_PATH, RAW_DIR, RAW_MANIFEST_PATH  # noqa: 
 
 PAGE_SIZE = 100
 
-# Sized to land the corpus around 3,000-5,000 unique trials after the heavy
-# overlap between 162 terms. Broad condition terms (tuberculosis, influenza,
-# HIV infection) each match thousands of studies and will cap; that is the
-# intended behaviour and every capped term is named in the run summary,
-# because a truncated pull is a sampling decision and an invisible sampling
-# decision becomes a wrong conclusion later.
-DEFAULT_MAX_PER_TERM = 60
+# A RUNAWAY GUARD, NOT A SAMPLING RULE.
+#
+# The first dry run used 60 and capped 90 of 162 terms -- 56%. At that rate
+# the cap was not protecting against a pathological term, it was choosing
+# the corpus, and every crowding count would have been a lower bound rather
+# than a total.
+#
+# v2 covers one therapeutic area completely instead, so the cap's job
+# changes. It exists only to stop a single unexpectedly enormous term from
+# consuming an entire run, and it is set far above any real antifungal term.
+#
+# The value of keeping it at all -- rather than removing it -- is that the
+# run summary reports how many terms capped. "0 of N terms capped" is a
+# VERIFIED completeness claim. Removing the cap would make completeness an
+# assumption instead, and an assumption is not something you can state to
+# someone who asks how you know.
+DEFAULT_MAX_PER_TERM = 2000
 
 # WHICH 60, NOT JUST HOW MANY.
 #
@@ -129,12 +155,51 @@ def load_config(config_path: Path) -> dict:
     return {k: v for k, v in config.items() if not k.startswith("_")}
 
 
-def resolve_areas(requested: str, config: dict) -> list[str]:
+def is_enabled(spec: dict) -> bool:
+    """
+    Absent `enabled` defaults to True, so an area added without the key
+    behaves as configured rather than being silently skipped. Opting OUT has
+    to be explicit; that direction of default is the safe one, because a
+    silently-ignored area produces a dashboard filter that returns nothing
+    with no indication why -- v1 bug #6's exact symptom.
+    """
+    return spec.get("enabled", True) is not False
+
+
+def resolve_areas(requested: str, config: dict, include_disabled: bool = False) -> list[str]:
+    """
+    `--area all` means all ENABLED areas, not every key in the file.
+
+    v2 keeps antibacterials and antivirals configured but disabled, so the
+    scope narrowing is visible and reversible instead of deleted. That only
+    works if "all" respects the flag -- otherwise the record of intent
+    becomes an accidental ingest of 120 extra terms.
+    """
     if requested == "all":
-        return list(config.keys())
+        areas = [a for a, spec in config.items()
+                 if include_disabled or is_enabled(spec)]
+        if not areas:
+            raise ValueError(
+                "No enabled areas in the config. Set enabled:true on at least "
+                "one area, or pass --include-disabled."
+            )
+        return areas
+
     if requested not in config:
         available = ", ".join(list(config.keys()) + ["all"])
         raise ValueError(f"Unknown area '{requested}'. Available: {available}")
+
+    # Naming a disabled area explicitly is allowed -- that is an unambiguous
+    # instruction -- but it is announced, because the tests do not enforce
+    # coverage for disabled areas and a corpus containing un-enforced data is
+    # worth knowing about.
+    if not is_enabled(config[requested]) and not include_disabled:
+        print(f"NOTE: '{requested}' is disabled in the config. Ingesting it "
+              f"anyway because you named it explicitly.")
+        print("      tests/test_coverage.py does not enforce coverage for "
+              "disabled areas.")
+        print()
+
     return [requested]
 
 
@@ -345,9 +410,10 @@ def run(
     max_per_term: int,
     dry_run: bool,
     sort: str = DEFAULT_SORT,
+    include_disabled: bool = False,
 ) -> int:
     config = load_config(config_path)
-    areas = resolve_areas(requested_area, config)
+    areas = resolve_areas(requested_area, config, include_disabled)
 
     if not dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -356,7 +422,10 @@ def run(
     preflight_sort(client, sort)
     manifest = load_manifest(manifest_path)
 
+    disabled = [a for a in config if not is_enabled(config[a])]
     print(f"Areas:        {', '.join(areas)}")
+    if disabled:
+        print(f"Disabled:     {', '.join(disabled)} (configured, not ingested)")
     print(f"Output dir:   {out_dir}")
     print(f"Manifest:     {manifest_path}")
     print(f"Max per term: {max_per_term}")
@@ -498,6 +567,12 @@ def parse_args():
         f"lets CT.gov's default choose your corpus for you.",
     )
     parser.add_argument(
+        "--include-disabled",
+        action="store_true",
+        help="Include areas marked enabled:false when using --area all. "
+             "Coverage for those areas is not enforced by the test suite.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Query and report counts without writing files or the manifest. "
@@ -519,6 +594,7 @@ if __name__ == "__main__":
                 args.max_per_term,
                 args.dry_run,
                 args.sort,
+                args.include_disabled,
             )
         )
     except Exception as exc:

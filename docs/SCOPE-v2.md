@@ -42,7 +42,50 @@ Three things have to be built to get there:
 |---|---|---|---|
 | 1 | Embedding model | Local ONNX small model (`BAAI/bge-small-en-v1.5` via `fastembed`) | ~130MB, no PyTorch, CPU-only, deployable to Streamlit Community Cloud, zero marginal cost per trial forever. Swappable behind one interface if domain quality proves insufficient. |
 | 2 | Candidate pool source | Pre-ingested local corpus, **plus a live CT.gov toggle in the app** | Local corpus makes the demo instant and deterministic. The toggle means a live question can reach trials added since the last ingest, without making every query depend on the network. |
-| 3 | Therapeutic scope | All anti-infectives: antifungal + antibacterial + antiviral | Widens the *data* to match what v1's planner prompt already claimed its scope was. This is the deliberate resolution of v1 bug #6, which was a mismatch between stated scope and actual coverage. |
+| 3 | Therapeutic scope | **Antifungals only, covered completely** (revised — see below) | Resolves v1 bug #6 by narrowing the stated scope to match the data, rather than widening the data to match the prompt. Both directions fix the bug; the requirement was only ever that the two agree. Narrowing buys complete coverage, a tractable alias dictionary, and a committable snapshot. |
+
+### Decision 3 was revised during implementation
+
+The original choice was all anti-infectives — three areas. The first dry run
+is what changed it, and the number that did it was this: with
+`--max-per-term 60`, **90 of 162 terms capped. 56%.**
+
+Above roughly half, a cap is not a safety valve protecting against one
+pathological term. It *is* the sampling method. Every count the dashboard
+reports would have been a lower bound rather than a total, and "most crowded
+indication" computed over a 56%-truncated corpus is largely measuring the
+cap. The landscape premise does not survive that.
+
+Three areas sampled, or one area complete. One area complete wins on four
+counts:
+
+1. **Counts become facts.** "11 programs in invasive candidiasis" is a
+   total, not a sample artifact. Every headline metric in the V2 proposal
+   depends on this to mean anything.
+2. **The alias dictionary becomes reviewable.** Decision 5 locked program
+   resolution to a hand-curated table. Antifungals have roughly 25–30 real
+   assets; antibacterials plus antivirals is 150+. This was the largest
+   remaining piece of work in v2 and the one most likely to be done badly at
+   the wrong scale.
+3. **The snapshot commits.** One area lands well under GitHub's limits, so
+   the v1 deployment problem — a fresh clone rendering an empty dashboard —
+   is solved rather than deferred.
+4. **The data can be eyeballed.** The reason v1 chose antifungals as its
+   seed area in the first place was existing domain familiarity, which makes
+   it possible to spot nonsense in the pulled records. That advantage
+   returns.
+
+Cost, stated plainly: the project covers a narrower slice of medicine than
+"all anti-infectives" implies, and the pipeline's generality is argued rather
+than demonstrated across areas. `antibacterials` and `antivirals` stay in
+`query_config.json` with `enabled: false` so the narrowing is a visible,
+reversible decision instead of a deletion — and re-enabling either requires
+extending the alias dictionary and widening the planner's scope prompt *in
+the same change*, because doing one without the other is exactly v1 bug #6.
+
+The cap is kept rather than removed, set far above any real antifungal term.
+With no cap, completeness would be an assumption; with one, the run summary
+reporting "0 of 86 terms capped" makes completeness a verified claim.
 | 4 | Repo layout | New branch `v2`, restructure in place | `main` keeps a runnable v1. v2 gets a clean tree. The progression is legible in git history. |
 | 5 | Program rollup | Deterministic alias dictionary | Keeps v1's architectural line — the LLM translates, Python decides. Asset identity is a judgment that must be reproducible and inspectable, so it is a curated table, not a model output. |
 | 6 | Derived fields | Strict per-cell provenance | Every value in the comparison table carries its source. Registry fact, dictionary lookup, text inference, and "not in registry" are visually distinct. Extends v1's data honesty rule from prose to tabular data. |
