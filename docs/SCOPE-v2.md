@@ -44,6 +44,10 @@ Three things have to be built to get there:
 | 2 | Candidate pool source | Pre-ingested local corpus, **plus a live CT.gov toggle in the app** | Local corpus makes the demo instant and deterministic. The toggle means a live question can reach trials added since the last ingest, without making every query depend on the network. |
 | 3 | Therapeutic scope | **Antifungals only, covered completely** (revised — see below) | Resolves v1 bug #6 by narrowing the stated scope to match the data, rather than widening the data to match the prompt. Both directions fix the bug; the requirement was only ever that the two agree. Narrowing buys complete coverage, a tractable alias dictionary, and a committable snapshot. |
 
+| 4 | Repo layout | New branch `v2`, restructure in place | `main` keeps a runnable v1. v2 gets a clean tree. The progression is legible in git history. |
+| 5 | Program rollup | Deterministic alias dictionary | Keeps v1's architectural line — the LLM translates, Python decides. Asset identity is a judgment that must be reproducible and inspectable, so it is a curated table, not a model output. |
+| 6 | Derived fields | Strict per-cell provenance | Every value in the comparison table carries its source. Registry fact, dictionary lookup, text inference, and "not in registry" are visually distinct. Extends v1's data honesty rule from prose to tabular data. |
+
 ### Decision 3 was revised during implementation
 
 The original choice was all anti-infectives — three areas. The first dry run
@@ -86,9 +90,6 @@ the same change*, because doing one without the other is exactly v1 bug #6.
 The cap is kept rather than removed, set far above any real antifungal term.
 With no cap, completeness would be an assumption; with one, the run summary
 reporting "0 of 86 terms capped" makes completeness a verified claim.
-| 4 | Repo layout | New branch `v2`, restructure in place | `main` keeps a runnable v1. v2 gets a clean tree. The progression is legible in git history. |
-| 5 | Program rollup | Deterministic alias dictionary | Keeps v1's architectural line — the LLM translates, Python decides. Asset identity is a judgment that must be reproducible and inspectable, so it is a curated table, not a model output. |
-| 6 | Derived fields | Strict per-cell provenance | Every value in the comparison table carries its source. Registry fact, dictionary lookup, text inference, and "not in registry" are visually distinct. Extends v1's data honesty rule from prose to tabular data. |
 
 ---
 
