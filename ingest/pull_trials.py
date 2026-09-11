@@ -81,7 +81,14 @@ from common.ctgov_client import CTGovClient  # noqa: E402
 from common.paths import QUERY_CONFIG_PATH, RAW_DIR, RAW_MANIFEST_PATH  # noqa: E402
 
 PAGE_SIZE = 100
-DEFAULT_MAX_PER_TERM = 300
+
+# Sized to land the corpus around 3,000-5,000 unique trials after the heavy
+# overlap between 162 terms. Broad condition terms (tuberculosis, influenza,
+# HIV infection) each match thousands of studies and will cap; that is the
+# intended behaviour and every capped term is named in the run summary,
+# because a truncated pull is a sampling decision and an invisible sampling
+# decision becomes a wrong conclusion later.
+DEFAULT_MAX_PER_TERM = 60
 
 # Applied to condition and pathogen queries only. Interventional studies of
 # drugs or biologics -- which is what a development landscape is about.

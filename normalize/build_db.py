@@ -7,11 +7,21 @@ about raw files. This script is the only thing that sees both.
 
 No Claude calls. No network calls. Pure local parsing.
 
+Therapeutic area comes from the ingest manifest, not from a flag. See
+load_manifest() for why -- the flag version was a silent data bug.
+
+The record stored in trials.raw_json is storage-compacted by
+normalize/compact.py, which removes per-arm statistical tables and site
+contact lists while leaving the registry structure intact. Full records stay
+on disk in data/raw/. Compaction provably does not move the materiality
+hash; normalize/compact.py asserts this across the whole corpus.
+
 Usage:
     python normalize/build_db.py
-    python normalize/build_db.py --area antifungals
-    python normalize/build_db.py --dry-run          # report, write nothing
-    python normalize/build_db.py --limit 20         # smoke test
+    python normalize/build_db.py --dry-run              # report, write nothing
+    python normalize/build_db.py --limit 20             # smoke test
+    python normalize/build_db.py --only-area antivirals # filter, not tag
+    python normalize/build_db.py --vacuum               # shrink the file too
 """
 
 from __future__ import annotations
@@ -27,6 +37,7 @@ from pathlib import Path
 # imports resolve the same way regardless of where you run this from.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common.paths import DB_PATH, RAW_DIR, RAW_MANIFEST_PATH, SCHEMA_PATH  # noqa: E402
+from normalize.compact import compact_study  # noqa: E402
 from normalize.materiality import compute_materiality_hash, dig  # noqa: E402
 
 DEFAULT_RAW_DIR = RAW_DIR
@@ -316,6 +327,8 @@ def run(
     only_area: str | None,
     dry_run: bool,
     limit: int | None,
+    full_json: bool = False,
+    vacuum: bool = False,
 ):
     manifest = load_manifest(manifest_path)
 
@@ -365,6 +378,8 @@ def run(
     area_rows = 0
     snapshots = 0
     unmanifested = 0
+    stored_bytes = 0
+    full_bytes = 0
     changed_ids: list[str] = []
 
     for path in files:
@@ -397,8 +412,21 @@ def run(
                     else "unchanged"
                 )
             else:
+                # The hash above is computed from the FULL study, and the
+                # stored record is compacted. That is safe only because
+                # compaction is structure-preserving inside the materiality
+                # whitelist -- normalize/compact.py asserts the two produce
+                # identical hashes across the whole corpus. If that ever
+                # stops holding, every trial looks materially changed on the
+                # next build and the enrichment cost control silently stops
+                # working, which is v1 bug #2 by another route.
+                stored = study if full_json else compact_study(study)
+                stored_json = json.dumps(stored)
+                stored_bytes += len(stored_json)
+                full_bytes += len(json.dumps(study))
+
                 status = upsert_trial(
-                    conn, row, materiality_hash, json.dumps(study), legacy_area, now
+                    conn, row, materiality_hash, stored_json, legacy_area, now
                 )
                 area_rows += upsert_trial_areas(conn, row["nct_id"], areas, now)
                 if record_snapshot(conn, row, materiality_hash, now):
@@ -414,6 +442,21 @@ def run(
 
     if not dry_run:
         conn.commit()
+
+        if vacuum:
+            # SQLite does not return freed pages to the filesystem on its
+            # own, so replacing full records with compacted ones shrinks the
+            # data without shrinking the FILE. That distinction matters here
+            # for one specific reason: the deployment plan is to commit a
+            # demo snapshot, and git cares about file size, not about how
+            # much of it is reclaimable free space.
+            #
+            # Not automatic, because VACUUM rewrites the whole database and
+            # needs roughly 2x its size in temporary disk. On a 40MB
+            # snapshot that is nothing; making it a flag means it is a
+            # choice rather than a surprise mid-build.
+            print("Vacuuming (reclaiming freed pages)...")
+            conn.execute("VACUUM")
 
     total_rows = conn.execute("SELECT COUNT(*) FROM trials").fetchone()[0]
     area_breakdown = conn.execute(
@@ -445,6 +488,13 @@ def run(
     print(f"Rows in db:      {total_rows}")
     print(f"Area rows added: {area_rows}")
     print(f"Snapshots added: {snapshots}  (only trials whose hash moved)")
+
+    if full_bytes:
+        saved = 100 * (full_bytes - stored_bytes) / full_bytes
+        mode = "FULL (--full-json)" if full_json else "compacted"
+        print(f"Stored JSON:     {stored_bytes / 1e6:.1f} MB {mode}"
+              + ("" if full_json else f", {saved:.0f}% smaller than raw "
+                                      f"({full_bytes / 1e6:.1f} MB)"))
 
     if area_breakdown:
         print()
@@ -497,6 +547,19 @@ def parse_args():
                         help="Report what would change without writing.")
     parser.add_argument("--limit", type=int, default=None,
                         help="Process only the first N files -- useful for a smoke test.")
+    parser.add_argument(
+        "--full-json",
+        action="store_true",
+        help="Store the complete registry record instead of the compacted one. "
+             "Roughly 3x the database size. For debugging a compaction "
+             "question, not for normal builds.",
+    )
+    parser.add_argument(
+        "--vacuum",
+        action="store_true",
+        help="Reclaim freed pages after the build so the database FILE shrinks, "
+             "not just its contents. Use before committing a demo snapshot.",
+    )
     args = parser.parse_args()
 
     if args.area is not None:
@@ -525,6 +588,8 @@ if __name__ == "__main__":
             args.only_area,
             args.dry_run,
             args.limit,
+            args.full_json,
+            args.vacuum,
         )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
