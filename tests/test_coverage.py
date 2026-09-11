@@ -69,6 +69,7 @@ TERM_GROUPS = {
     "sponsor_terms": "sponsor",
     "mechanism_terms": "mechanism",
     "related_terms": "related",
+    "population_terms": "population",
 }
 
 # Validated for shape, not for hit counts.

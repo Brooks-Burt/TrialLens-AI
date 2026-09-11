@@ -8,7 +8,8 @@
     "pathogen_lexicon": "Organisms. NOT queried at ingest -- this is a lexicon, not a term list, and the distinction was learned empirically. The first antifungal dry run queried 20 species-level pathogens against the condition field and 6 returned exactly zero, while the survivors returned almost nothing (C. auris 3, A. fumigatus 4, Rhizopus 3). The only two with real counts, C. albicans and C. neoformans, are effectively synonyms for how their syndrome is already labelled. The pattern is the finding: CT.gov does not index conditions at species level. Trials label the SYNDROME ('Invasive Candidiasis', 'Candidemia'), not the organism. So 8 dead terms were one design error with eight symptoms, not eight typos -- and exempting them via known_zero would have papered over it. Pathogen remains a first-class retrieval criterion and the landscape's y-axis (see docs/SCOPE-v2.md correction #5); what changed is that it is DERIVED by matching this lexicon against trial text -- title, conditions, brief summary, eligibility, outcome measures -- and stored in attribute_provenance with the matched span, rather than being used to select the corpus. Consumer: normalize/pathogens.py.",
     "grab_dimensions": "Four dimensions, plus related terminology, unioned. Each is queried per term against the CT.gov field that indexes it: condition_terms -> query.cond, intervention_terms -> query.intr, sponsor_terms -> query.spons, mechanism_terms and related_terms -> query.term (full-text; CT.gov has no mechanism field). This stage optimises RECALL ONLY. Precision is the retrieve/ layer's job -- structured per-criterion scoring plus semantic ranking against the actual question. Drug-drug interaction studies, off-indication use, and topically adjacent trials are all FINE to ingest: a DDI study of ketoconazole and midazolam will score near zero against 'what does the competitive landscape for invasive candidiasis look like', so filtering it out here buys nothing and costs recall on trials whose relevance depends on the question being asked. An earlier build added a relevance quarantine at this stage and it was removed for exactly that reason -- it was precision work at the wrong layer.",
     "sponsor_terms": "Antifungal-focused sponsors only, queried alone. Big pharma is deliberately absent: query.spons=Pfizer returns thousands of interventional trials across every therapeutic area, which is a corpus-sized query with no antifungal constraint on it. Those sponsors are reached through their compounds in intervention_terms instead -- Pfizer via fluconazole and voriconazole, Merck via caspofungin and posaconazole, Gilead via liposomal amphotericin B. Astellas is included because its trial portfolio is antifungal-heavy enough to be safe, and the --max-per-term cap plus the capped-term report will catch it if that stops being true.",
-    "known_zero": "Terms verified to return zero, kept with a written reason and enforced by tests/test_coverage.py. This is CONFIG VALIDATION, not corpus filtering -- the point is to catch a typo or a discontinued code name, which is why a genuine documented zero needs an explicit exemption rather than a loosened assertion."
+    "known_zero": "Terms verified to return zero, kept with a written reason and enforced by tests/test_coverage.py. This is CONFIG VALIDATION, not corpus filtering -- the point is to catch a typo or a discontinued code name, which is why a genuine documented zero needs an explicit exemption rather than a loosened assertion.",
+    "population_terms": "HOST POPULATIONS, anchored. These are populations where antifungal prophylaxis and empiric therapy are studied -- not antifungal indications. Queried as query.cond AND query.term=<population_anchor>, so 'hematopoietic stem cell transplantation' returns HSCT trials that mention antifungal rather than all HSCT trials. Learned from the cap: unanchored, HSCT hit the 2000 runaway guard, and essentially all of that is GVHD, conditioning regimens, and graft manipulation. That is not recall, it is a different disease area taking over the corpus -- the cap firing was the term telling us it was the wrong shape. The anchor is NOT the v1 cond-AND-intr mistake. v1 required BOTH dimensions for every trial in the corpus, which discarded novel assets whose intervention is a development code. This anchors ONE dimension that is meaningless unanchored, and it preserves the recall that matters: a prophylaxis trial of an unfamiliar compound in HSCT patients still matches on the word antifungal, where dropping the term entirely would have missed it."
   },
   "antifungals": {
     "description": "Antifungal trials. The single enabled area in v2, covered completely rather than sampled -- run with a high --max-per-term so the run summary can report zero capped terms, which is what makes completeness a verified claim instead of an assumption.",
@@ -48,12 +49,7 @@
       "fungal keratitis",
       "fungal endophthalmitis",
       "fungal sinusitis",
-      "mycetoma",
-      "febrile neutropenia",
-      "neutropenia",
-      "hematopoietic stem cell transplantation",
-      "lung transplantation",
-      "chronic granulomatous disease"
+      "mycetoma"
     ],
     "intervention_terms": [
       "fluconazole",
@@ -230,7 +226,20 @@
     "known_zero": {
       "condition/candiduria": "Zero interventional trials, confirmed by dry run. Real clinical entity, but IDSA guidance explicitly recommends NOT treating asymptomatic candiduria, so there is little to randomise. Kept rather than deleted: it costs one request and starts matching the moment a trial appears. This exemption is about CONFIG VALIDATION, not corpus filtering -- the dead-term test exists to catch typos and renamed compounds, and a documented genuine zero should not silence it for everything else.",
       "condition/fungal endophthalmitis": "Zero interventional trials, confirmed by dry run. Managed with intravitreal therapy and vitrectomy on case-series evidence rather than randomised trials, so a genuine absence rather than a typo. Same reasoning as candiduria."
-    }
+    },
+    "population_terms": [
+      "febrile neutropenia",
+      "neutropenia",
+      "hematopoietic stem cell transplantation",
+      "lung transplantation",
+      "chronic granulomatous disease",
+      "solid organ transplantation",
+      "acute myeloid leukemia",
+      "graft versus host disease",
+      "HIV infection",
+      "intensive care unit"
+    ],
+    "population_anchor": "antifungal"
   },
   "antibacterials": {
     "description": "DISABLED in v2. Retained so the scope narrowing is visible and reversible. Enabling this requires extending normalize/asset_aliases.json to cover these compounds AND widening the query planner's scope prompt in the same change -- doing one without the other is v1 bug #6.",

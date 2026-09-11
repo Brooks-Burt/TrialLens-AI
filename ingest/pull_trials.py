@@ -76,8 +76,23 @@ until the scope widened.
 RECALL FIRST -- PRECISION IS NOT THIS MODULE'S JOB
 ==================================================
 
-Five dimensions are queried and unioned: condition, intervention, sponsor,
-mechanism, and related terminology. See GROUP_FIELDS.
+Six dimensions are queried and unioned: condition, intervention, sponsor,
+mechanism, related terminology, and host population. See GROUP_FIELDS.
+
+Five are queried bare. The sixth -- population -- is ANCHORED, because host
+populations are not indications. "hematopoietic stem cell transplantation"
+unanchored hit the 2000 runaway guard on its first run, and essentially all
+of it was GVHD, conditioning regimens, and graft manipulation. That is not
+recall; it is a different disease area taking over the corpus, and the cap
+firing was the term telling us so. Population terms are therefore sent as
+query.cond AND query.term=antifungal.
+
+That anchor is NOT v1's cond-AND-intr mistake. v1 required both dimensions
+for EVERY trial in the corpus, which discarded novel assets whose
+intervention is only a development code. This anchors one dimension that is
+meaningless without it, and keeps the recall that matters: a prophylaxis
+trial of an unfamiliar compound in HSCT patients still matches on the word
+antifungal, where dropping the term would have missed it entirely.
 
 This stage deliberately over-collects. Drug-drug interaction studies,
 off-indication use, and topically adjacent trials all land in the corpus,
@@ -285,12 +300,19 @@ def preflight_sort(client: CTGovClient, sort: str) -> None:
 # already specific enough. Everything else carries it, because query.cond,
 # query.spons and especially query.term return large observational tails
 # that are real data but are not development programs.
-GROUP_FIELDS: dict[str, tuple[str, str, bool]] = {
-    "condition":    ("condition_terms",    "query.cond",  True),
-    "intervention": ("intervention_terms", "query.intr",  False),
-    "sponsor":      ("sponsor_terms",      "query.spons", True),
-    "mechanism":    ("mechanism_terms",    "query.term",  True),
-    "related":      ("related_terms",      "query.term",  True),
+GROUP_FIELDS: dict[str, dict] = {
+    "condition":    {"key": "condition_terms",    "field": "query.cond",  "filtered": True},
+    "intervention": {"key": "intervention_terms", "field": "query.intr",  "filtered": False},
+    "sponsor":      {"key": "sponsor_terms",      "field": "query.spons", "filtered": True},
+    "mechanism":    {"key": "mechanism_terms",    "field": "query.term",  "filtered": True},
+    "related":      {"key": "related_terms",      "field": "query.term",  "filtered": True},
+    # Host populations, anchored. See the population_terms note in
+    # query_config.json -- unanchored, "hematopoietic stem cell
+    # transplantation" hit the 2000 runaway guard with GVHD and conditioning
+    # trials. `anchor` names a config key whose value is ANDed in via
+    # query.term.
+    "population":   {"key": "population_terms",   "field": "query.cond",  "filtered": True,
+                     "anchor": "population_anchor"},
 }
 
 
@@ -320,10 +342,15 @@ def build_term_queries(area: str, spec: dict, sort: str = DEFAULT_SORT) -> list[
     study_filters = spec.get("study_filters", DEFAULT_STUDY_FILTERS)
     queries: list[dict] = []
 
-    for group, (config_key, field, filtered) in GROUP_FIELDS.items():
-        for term in spec.get(config_key) or []:
-            params = {field: quote_term(term)}
-            if filtered:
+    for group, gspec in GROUP_FIELDS.items():
+        anchor = spec.get(gspec["anchor"]) if gspec.get("anchor") else None
+        for term in spec.get(gspec["key"]) or []:
+            params = {gspec["field"]: quote_term(term)}
+            if anchor:
+                # Different CT.gov params are ANDed, so this narrows the
+                # population to trials that also mention the anchor.
+                params["query.term"] = quote_term(anchor)
+            if gspec["filtered"]:
                 params.update(study_filters)
             if spec.get("status_filter"):
                 params["filter.overallStatus"] = spec["status_filter"]
