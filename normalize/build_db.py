@@ -25,14 +25,12 @@ from pathlib import Path
 
 # normalize/ is a sibling of common/ and enrich/ -- add repo root so
 # imports resolve the same way regardless of where you run this from.
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from common.paths import DB_PATH, RAW_DIR, RAW_MANIFEST_PATH, SCHEMA_PATH  # noqa: E402
 from normalize.materiality import compute_materiality_hash, dig  # noqa: E402
 
-HERE = Path(__file__).parent
-REPO_ROOT = HERE.parent
-DEFAULT_RAW_DIR = REPO_ROOT / "data" / "raw"
-DEFAULT_DB_PATH = REPO_ROOT / "data" / "trials.db"
-SCHEMA_PATH = HERE / "schema.sql"
+DEFAULT_RAW_DIR = RAW_DIR
+DEFAULT_DB_PATH = DB_PATH
 
 
 def parse_study(study: dict) -> dict:
@@ -91,6 +89,151 @@ def apply_schema(conn: sqlite3.Connection):
     safe to run on every invocation, including against an existing db."""
     conn.executescript(SCHEMA_PATH.read_text())
     conn.commit()
+
+
+def load_manifest(path: Path) -> dict:
+    """
+    Read data/raw/_manifest.json, written by ingest at pull time.
+
+    THIS REPLACES THE --area FLAG, and the reason is a bug rather than a
+    preference.
+
+    v1 tagged therapeutic area from a CLI flag applied to every file this
+    script globbed out of data/raw/. With one configured area that is
+    harmless. With three it is silent data corruption: running
+
+        python normalize/build_db.py --area antibacterials
+
+    relabels all 175 already-ingested antifungal trials as antibacterial,
+    because the upsert's COALESCE(excluded.area, trials.area) lets the
+    incoming non-null value win. Nothing errors; the dashboard's area filter
+    just quietly starts lying.
+
+    The deeper problem is that area membership is a property of WHICH QUERY
+    MATCHED a trial, and only ingest ever knows that. Reconstructing it in
+    this script from a flag and a directory listing is guesswork dressed as
+    data. So ingest records it and this script reads it.
+    """
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f).get("trials", {})
+
+
+def areas_for(manifest: dict, nct_id: str) -> dict[str, list[str]]:
+    """
+    Returns {area: [match_group, ...]} for one trial.
+
+    Sorted so the legacy therapeutic_area column gets a deterministic value.
+    An unsorted dict would make that column depend on JSON key order, which
+    means two builds of the same data could disagree -- the exact class of
+    non-determinism v1's canonicalize() docstring warns about for hashing.
+    """
+    entry = manifest.get(nct_id, {})
+    return {area: sorted(groups) for area, groups in sorted(entry.items())}
+
+
+def upsert_trial_areas(
+    conn: sqlite3.Connection,
+    nct_id: str,
+    areas: dict[str, list[str]],
+    now: str,
+) -> int:
+    """
+    Write many-to-many area membership. INSERT OR IGNORE against the
+    (nct_id, therapeutic_area) primary key makes re-runs free.
+
+    matched_via joins multiple groups with '+' when a trial matched an area
+    through both a condition and an intervention term. That is real
+    information -- it means the trial is squarely in the area rather than
+    caught by one edge -- and it is what the coverage test reads to find
+    config terms that never match anything.
+    """
+    written = 0
+    for area, groups in areas.items():
+        matched_via = "+".join(groups) or None
+
+        cur = conn.execute(
+            """
+            INSERT OR IGNORE INTO trial_areas
+                (nct_id, therapeutic_area, matched_via, first_seen_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (nct_id, area, matched_via, now),
+        )
+        written += max(cur.rowcount, 0)
+
+        # Backfill attribution onto rows that predate it.
+        #
+        # migrate_v2.py copied v1's area tags across with matched_via NULL,
+        # which was the honest value -- v1 never recorded a match reason, so
+        # there was nothing to migrate. But INSERT OR IGNORE above skips
+        # those rows entirely, so without this they would stay NULL forever
+        # even after a full re-ingest that does know the answer.
+        #
+        # Done as a separate UPDATE rather than an ON CONFLICT DO UPDATE on
+        # purpose: DO UPDATE reports rowcount 1 whether or not anything
+        # changed, which would destroy the "Area rows added: 0" signal that
+        # makes a re-run's idempotency visible in the summary.
+        #
+        # COALESCE, not assignment, so an attribution already on the row is
+        # never overwritten -- only genuinely absent ones are filled.
+        if matched_via is not None:
+            conn.execute(
+                """
+                UPDATE trial_areas
+                   SET matched_via = ?
+                 WHERE nct_id = ? AND therapeutic_area = ?
+                   AND matched_via IS NULL
+                """,
+                (matched_via, nct_id, area),
+            )
+
+    return written
+
+
+def record_snapshot(
+    conn: sqlite3.Connection,
+    row: dict,
+    materiality_hash: str,
+    now: str,
+) -> bool:
+    """
+    Append to trial_snapshots only when materiality_hash differs from this
+    trial's most recent snapshot.
+
+    That condition is what makes the table a change log rather than a
+    rebuild log. An unconditional insert appends one row per trial per run,
+    and within a few runs there is no way to distinguish a real phase
+    transition from someone having re-run the script -- which would make the
+    velocity metric the table exists to enable worse than not having it.
+    """
+    latest = conn.execute(
+        """
+        SELECT materiality_hash FROM trial_snapshots
+         WHERE nct_id = ?
+         ORDER BY observed_at DESC
+         LIMIT 1
+        """,
+        (row["nct_id"],),
+    ).fetchone()
+
+    if latest is not None and latest[0] == materiality_hash:
+        return False
+
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO trial_snapshots
+            (nct_id, observed_at, phase, overall_status,
+             enrollment, materiality_hash)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            row["nct_id"], now, row["phase"], row["overall_status"],
+            row["enrollment"], materiality_hash,
+        ),
+    )
+    return True
 
 
 def upsert_trial(
@@ -166,31 +309,62 @@ def upsert_trial(
     return status
 
 
-def run(raw_dir: Path, db_path: Path, area: str | None, dry_run: bool, limit: int | None):
-    files = sorted(raw_dir.glob("*.json"))
+def run(
+    raw_dir: Path,
+    db_path: Path,
+    manifest_path: Path,
+    only_area: str | None,
+    dry_run: bool,
+    limit: int | None,
+):
+    manifest = load_manifest(manifest_path)
+
+    files = sorted(p for p in raw_dir.glob("*.json") if not p.name.startswith("_"))
+
+    if only_area:
+        files = [p for p in files if only_area in manifest.get(p.stem, {})]
+
     if limit:
         files = files[:limit]
 
     if not files:
-        print(f"No JSON files found in {raw_dir}. Run ingest first.")
+        if only_area:
+            print(f"No trials matched area '{only_area}' in the manifest.")
+        else:
+            print(f"No JSON files found in {raw_dir}. Run ingest first.")
         return
 
     print(f"Raw dir:  {raw_dir}")
     print(f"Database: {db_path}")
+    print(f"Manifest: {manifest_path} "
+          f"({len(manifest)} trial(s))" if manifest else f"Manifest: MISSING")
     print(f"Files:    {len(files)}")
-    if area:
-        print(f"Area tag: {area}")
+    if only_area:
+        print(f"Filter:   --only-area {only_area}")
     if dry_run:
         print("DRY RUN -- nothing will be written.")
     print()
 
+    # An absent manifest is not fatal -- a v1 database predates it -- but it
+    # means no area membership can be written for this run, and saying so
+    # beats leaving trial_areas mysteriously empty.
+    if not manifest:
+        print("WARNING: no ingest manifest found. Trials will be written, but")
+        print("         trial_areas will not be populated. Re-run")
+        print("         ingest/pull_trials.py to generate it.")
+        print()
+
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
     apply_schema(conn)
 
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     counts = {"new": 0, "changed": 0, "unchanged": 0}
     malformed = 0
+    area_rows = 0
+    snapshots = 0
+    unmanifested = 0
     changed_ids: list[str] = []
 
     for path in files:
@@ -202,6 +376,16 @@ def run(raw_dir: Path, db_path: Path, area: str | None, dry_run: bool, limit: in
                 raise ValueError("no nctId in record")
 
             materiality_hash = compute_materiality_hash(study)
+            areas = areas_for(manifest, row["nct_id"])
+            if manifest and not areas:
+                unmanifested += 1
+
+            # The legacy single-value column. Deliberately lossy: it holds
+            # the alphabetically-first area only. v1 code on main still
+            # reads it, so it is kept populated, but v2 code must read
+            # trial_areas instead -- a trial in two areas cannot be
+            # represented here, which is why the second table exists.
+            legacy_area = next(iter(areas), None)
 
             if dry_run:
                 existing = conn.execute(
@@ -214,8 +398,11 @@ def run(raw_dir: Path, db_path: Path, area: str | None, dry_run: bool, limit: in
                 )
             else:
                 status = upsert_trial(
-                    conn, row, materiality_hash, json.dumps(study), area, now
+                    conn, row, materiality_hash, json.dumps(study), legacy_area, now
                 )
+                area_rows += upsert_trial_areas(conn, row["nct_id"], areas, now)
+                if record_snapshot(conn, row, materiality_hash, now):
+                    snapshots += 1
 
             counts[status] += 1
             if status == "changed":
@@ -229,6 +416,22 @@ def run(raw_dir: Path, db_path: Path, area: str | None, dry_run: bool, limit: in
         conn.commit()
 
     total_rows = conn.execute("SELECT COUNT(*) FROM trials").fetchone()[0]
+    area_breakdown = conn.execute(
+        """
+        SELECT therapeutic_area, COUNT(*)
+          FROM trial_areas
+         GROUP BY therapeutic_area
+         ORDER BY therapeutic_area
+        """
+    ).fetchall()
+    multi_area = conn.execute(
+        """
+        SELECT COUNT(*) FROM (
+            SELECT nct_id FROM trial_areas
+             GROUP BY nct_id HAVING COUNT(*) > 1
+        )
+        """
+    ).fetchone()[0]
     conn.close()
 
     print()
@@ -240,6 +443,24 @@ def run(raw_dir: Path, db_path: Path, area: str | None, dry_run: bool, limit: in
     print(f"Unchanged:       {counts['unchanged']}  (enrich will skip these, at zero cost)")
     print(f"Malformed:       {malformed}")
     print(f"Rows in db:      {total_rows}")
+    print(f"Area rows added: {area_rows}")
+    print(f"Snapshots added: {snapshots}  (only trials whose hash moved)")
+
+    if area_breakdown:
+        print()
+        print("Area membership:")
+        for area, count in area_breakdown:
+            print(f"  {area:<18} {count:>5} trials")
+        # Non-zero overlap is the evidence that many-to-many was necessary
+        # rather than speculative -- and under v1's single column, every one
+        # of these trials would have had one membership silently discarded.
+        print(f"  {'in >1 area':<18} {multi_area:>5} trials")
+
+    if unmanifested:
+        print()
+        print(f"NOTE: {unmanifested} raw file(s) had no manifest entry, so no area")
+        print("      was recorded for them. Expected for trials ingested by v1")
+        print("      before the manifest existed; re-run ingest to attribute them.")
 
     if changed_ids:
         print()
@@ -250,27 +471,62 @@ def run(raw_dir: Path, db_path: Path, area: str | None, dry_run: bool, limit: in
             print(f"  ... and {len(changed_ids) - 20} more")
 
 
+class RemovedFlagError(SystemExit):
+    """`--area` was removed because its behaviour was a data bug."""
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, default=DEFAULT_RAW_DIR)
     parser.add_argument("--db-path", type=Path, default=DEFAULT_DB_PATH)
+    parser.add_argument("--manifest", type=Path, default=RAW_MANIFEST_PATH)
     parser.add_argument(
-        "--area",
+        "--only-area",
         default=None,
-        help="Tag rows with this therapeutic area, e.g. 'antifungals'. "
-             "Applies to every file processed in this run.",
+        help="Process only trials the manifest attributes to this area. "
+             "This FILTERS which files are read; it does not tag them. "
+             "Area tags come from the ingest manifest.",
     )
+    # --area is intercepted rather than silently ignored. A flag that used to
+    # change behaviour and now does nothing is worse than one that errors:
+    # the old command would appear to succeed while writing different data
+    # than the operator expected. Failing loudly with the reason is the only
+    # version of this that teaches anything.
+    parser.add_argument("--area", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--dry-run", action="store_true",
                         help="Report what would change without writing.")
     parser.add_argument("--limit", type=int, default=None,
                         help="Process only the first N files -- useful for a smoke test.")
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.area is not None:
+        parser.exit(
+            2,
+            "\n--area was removed in v2.\n\n"
+            "It applied one area tag to every file in data/raw/, so with more\n"
+            "than one configured area it silently relabelled the entire corpus:\n"
+            "'--area antibacterials' rewrote every antifungal trial's area,\n"
+            "because the upsert's COALESCE let the incoming value win.\n\n"
+            "Area membership is now read per-trial from the ingest manifest,\n"
+            "which records which query actually matched. If you meant to\n"
+            "restrict this run to one area, use --only-area instead.\n",
+        )
+
+    return args
 
 
 if __name__ == "__main__":
     args = parse_args()
     try:
-        run(args.raw_dir, args.db_path, args.area, args.dry_run, args.limit)
+        run(
+            args.raw_dir,
+            args.db_path,
+            args.manifest,
+            args.only_area,
+            args.dry_run,
+            args.limit,
+        )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
         sys.exit(1)
