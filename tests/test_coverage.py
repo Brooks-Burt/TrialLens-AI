@@ -66,6 +66,9 @@ from common.paths import QUERY_CONFIG_PATH, RAW_MANIFEST_PATH  # noqa: E402
 TERM_GROUPS = {
     "condition_terms": "condition",
     "intervention_terms": "intervention",
+    "sponsor_terms": "sponsor",
+    "mechanism_terms": "mechanism",
+    "related_terms": "related",
 }
 
 # Validated for shape, not for hit counts.

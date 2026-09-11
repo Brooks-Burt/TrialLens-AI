@@ -73,33 +73,41 @@ until the scope widened.
    select the corpus.
 
 
-ON QUERY VOLUME, AND WHY THE CAP CHANGED MEANING
-================================================
+RECALL FIRST -- PRECISION IS NOT THIS MODULE'S JOB
+==================================================
 
-The first dry run covered three areas with --max-per-term 60 and capped 90
-of 162 terms -- 56%. That number is what forced the scope decision. Above
-roughly half, the cap is not protecting against a pathological term; it IS
-the sampling method, which means every crowding count the dashboard reports
-would have been a lower bound rather than a total. "Most crowded
-indication" computed over a 56%-truncated corpus measures the cap.
+Five dimensions are queried and unioned: condition, intervention, sponsor,
+mechanism, and related terminology. See GROUP_FIELDS.
 
-v2 covers ONE area completely instead. The cap stays, set far above any
-real antifungal term, and its job is now only to stop a single
-unexpectedly enormous term from eating a run.
+This stage deliberately over-collects. Drug-drug interaction studies,
+off-indication use, and topically adjacent trials all land in the corpus,
+and that is correct rather than tolerated: whether a trial is relevant
+depends on the QUESTION, and ingest does not know the question. A DDI study
+of ketoconazole and midazolam scores near zero against "what does the
+competitive landscape for invasive candidiasis look like", so retrieve/
+removes it for free -- while a question about azole pharmacokinetics would
+want it.
 
-Keeping it rather than removing it is deliberate. The run summary reports
-how many terms capped, so "0 of 86 terms capped" is a VERIFIED completeness
-claim. With no cap at all, completeness would be an assumption -- and an
-assumption is not something you can state to someone who asks how you know.
+An earlier build added a relevance quarantine here, measured 7.8% of the
+corpus as off-topic, and flagged it in the database. It was removed. The
+measurement was real but the layer was wrong: it spent a table, a module and
+a build step doing work that structured scoring plus semantic ranking does
+anyway, and every trial it excluded was one that some other question might
+have wanted. Recorded here because "we built this and deleted it" is more
+useful than silence about why the obvious filter is absent.
 
-Two controls remain, both visible in the run summary:
-  - Condition queries carry a study-type filter (interventional only), so
-    observational cohorts and registries never enter the corpus. They are
-    real data but they are not programs, and they would inflate every
-    count. Intervention queries are specific enough not to need the filter.
+The cap and the sort are the only controls at this stage:
+
+  - --max-per-term is a RUNAWAY GUARD, not a sampling rule. It stops one
+    unexpectedly enormous term from eating a run. The summary reports how
+    many terms capped, so "0 of 120 capped" is a verified completeness
+    claim rather than an assumption.
   - --sort decides WHICH results a capped term keeps. Unspecified order is
-    not neutral when terms cap: it lets CT.gov's default silently choose the
-    corpus. See DEFAULT_SORT.
+    not neutral once anything caps: it lets CT.gov's default silently choose
+    the corpus. See DEFAULT_SORT.
+  - The interventional study-type filter applies to every dimension except
+    intervention (a named compound is specific enough on its own).
+    query.term in particular has a large observational tail.
 """
 
 from __future__ import annotations
@@ -261,33 +269,59 @@ def preflight_sort(client: CTGovClient, sort: str) -> None:
         )
 
 
+# The grab dimensions, declarative. Each entry is:
+#   group name -> (config key, CT.gov query param, apply study-type filter?)
+#
+# Adding a dimension is a config + one-line change here, not a rewrite of
+# the query builder. `group` is what lands in the manifest and in
+# trial_areas.matched_via, so these names are the vocabulary that column
+# uses.
+#
+# mechanism and related both target query.term because CT.gov has no
+# mechanism field -- query.term is full-text across the record, which is
+# the only place "glucan synthase inhibitor" can be found.
+#
+# Intervention queries skip the study-type filter: a named compound is
+# already specific enough. Everything else carries it, because query.cond,
+# query.spons and especially query.term return large observational tails
+# that are real data but are not development programs.
+GROUP_FIELDS: dict[str, tuple[str, str, bool]] = {
+    "condition":    ("condition_terms",    "query.cond",  True),
+    "intervention": ("intervention_terms", "query.intr",  False),
+    "sponsor":      ("sponsor_terms",      "query.spons", True),
+    "mechanism":    ("mechanism_terms",    "query.term",  True),
+    "related":      ("related_terms",      "query.term",  True),
+}
+
+
 def build_term_queries(area: str, spec: dict, sort: str = DEFAULT_SORT) -> list[dict]:
     """
-    One query per term. Returns dicts of {group, term, params}.
+    One query per term, per dimension. Returns dicts of
+    {area, group, term, params}.
 
-    `group` lands in the manifest as trial_areas.matched_via, so it uses
-    exactly the vocabulary that column expects: 'condition' or
-    'intervention'. Pathogen terms are queried against the condition field
-    but recorded under their own group, because pathogen is a distinct
-    retrieval criterion downstream and collapsing it into 'condition' here
-    would throw that distinction away at the only point it is observable.
+    This stage optimises RECALL ONLY. The union of five dimensions will pull
+    in drug-drug interaction studies, off-indication use, and topically
+    adjacent trials, and that is intended -- precision belongs to retrieve/,
+    which scores each trial against the actual question via structured
+    per-criterion matching plus semantic similarity.
+
+    A DDI study of ketoconazole and midazolam scores near zero against
+    "what does the competitive landscape for invasive candidiasis look
+    like", so excluding it here buys nothing. It would cost recall, because
+    whether a trial is relevant depends on the question, and ingest does not
+    know the question.
+
+    `pathogen_lexicon` is not a dimension here. Species names do not work as
+    CT.gov condition queries -- 6 of 20 returned zero and the survivors
+    returned 3-4 trials each, because the registry indexes conditions by
+    syndrome, not organism. Pathogen is derived from trial text downstream
+    instead.
     """
     study_filters = spec.get("study_filters", DEFAULT_STUDY_FILTERS)
     queries: list[dict] = []
 
-    # Two query groups, not three. `pathogen_lexicon` is deliberately NOT
-    # queried here -- see the pathogen_lexicon note in query_config.json.
-    # Briefly: the first antifungal dry run queried 20 species-level
-    # pathogens against the condition field and 6 returned zero while the
-    # survivors returned 3-4 trials each, because CT.gov indexes conditions
-    # by SYNDROME ("Invasive Candidiasis") and not by organism. Pathogen is
-    # still a first-class retrieval criterion; it is derived from trial text
-    # by normalize/pathogens.py instead of selecting the corpus.
-    for group, field, terms, filtered in (
-        ("condition", "query.cond", spec.get("condition_terms", []), True),
-        ("intervention", "query.intr", spec.get("intervention_terms", []), False),
-    ):
-        for term in terms or []:
+    for group, (config_key, field, filtered) in GROUP_FIELDS.items():
+        for term in spec.get(config_key) or []:
             params = {field: quote_term(term)}
             if filtered:
                 params.update(study_filters)

@@ -1,6 +1,6 @@
 {
   "capped": {},
-  "generated_at": "2026-09-11T16:29:38Z",
+  "generated_at": "2026-09-11T16:38:11Z",
   "max_per_term": 2000,
   "sort": "StartDate:desc",
   "term_hits": {
@@ -74,28 +74,6 @@
         "tavaborole": 11,
         "terbinafine": 62,
         "voriconazole": 214
-      },
-      "pathogen": {
-        "Aspergillus flavus": 0,
-        "Aspergillus fumigatus": 4,
-        "Candida albicans": 134,
-        "Candida auris": 3,
-        "Candida glabrata": 0,
-        "Candida krusei": 0,
-        "Candida parapsilosis": 0,
-        "Candida tropicalis": 0,
-        "Coccidioides immitis": 2,
-        "Cryptococcus neoformans": 57,
-        "Fusarium": 7,
-        "Histoplasma capsulatum": 1,
-        "Malassezia": 9,
-        "Mucorales": 5,
-        "Nakaseomyces glabratus": 0,
-        "Pneumocystis jirovecii": 17,
-        "Rhizopus": 3,
-        "Scedosporium": 5,
-        "Talaromyces marneffei": 1,
-        "Trichophyton rubrum": 4
       }
     }
   },
@@ -143,9 +121,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -201,9 +176,6 @@
         "condition": [
           "cryptococcosis",
           "cryptococcal meningitis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -239,9 +211,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -372,9 +341,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -441,24 +407,10 @@
         ]
       }
     },
-    "NCT00000958": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT00000966": {
       "antifungals": {
         "condition": [
           "coccidioidomycosis"
-        ]
-      }
-    },
-    "NCT00000972": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -557,9 +509,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -641,9 +590,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -798,9 +744,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -836,9 +779,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -925,9 +865,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -941,9 +878,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -958,9 +892,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -972,9 +903,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -986,9 +914,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1041,9 +966,6 @@
         "intervention": [
           "fluconazole",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1195,9 +1117,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1224,9 +1143,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1240,9 +1156,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1262,9 +1175,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1644,9 +1554,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1665,13 +1572,6 @@
         ],
         "intervention": [
           "voriconazole"
-        ]
-      }
-    },
-    "NCT00017095": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -1756,9 +1656,6 @@
         ],
         "intervention": [
           "posaconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1780,9 +1677,6 @@
         ],
         "intervention": [
           "posaconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -1798,9 +1692,6 @@
         ],
         "intervention": [
           "posaconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -2064,9 +1955,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -2192,13 +2080,6 @@
         ]
       }
     },
-    "NCT00114855": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT00117754": {
       "antifungals": {
         "condition": [
@@ -2283,9 +2164,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -2692,9 +2570,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -2757,9 +2632,6 @@
         "condition": [
           "cryptococcosis",
           "cryptococcal meningitis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -2879,13 +2751,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ]
-      }
-    },
-    "NCT00365742": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -3088,13 +2953,6 @@
         ]
       }
     },
-    "NCT00405769": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT00410501": {
       "antifungals": {
         "intervention": [
@@ -3160,13 +3018,6 @@
         ]
       }
     },
-    "NCT00417365": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT00418951": {
       "antifungals": {
         "condition": [
@@ -3188,9 +3039,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Rhizopus"
         ]
       }
     },
@@ -3370,9 +3218,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -3396,13 +3241,6 @@
         "intervention": [
           "posaconazole",
           "terbinafine"
-        ]
-      }
-    },
-    "NCT00492167": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -3556,9 +3394,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ],
-        "pathogen": [
-          "Aspergillus fumigatus"
         ]
       }
     },
@@ -3874,16 +3709,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
-        ]
-      }
-    },
-    "NCT00639223": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -3916,9 +3741,6 @@
         ],
         "intervention": [
           "voriconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -4202,9 +4024,6 @@
         "condition": [
           "coccidioidomycosis",
           "histoplasmosis"
-        ],
-        "pathogen": [
-          "Coccidioides immitis"
         ]
       }
     },
@@ -4619,9 +4438,6 @@
         ],
         "intervention": [
           "itraconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -4858,9 +4674,6 @@
       "antifungals": {
         "intervention": [
           "ketoconazole"
-        ],
-        "pathogen": [
-          "Malassezia"
         ]
       }
     },
@@ -4883,9 +4696,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -4966,10 +4776,6 @@
         ],
         "intervention": [
           "voriconazole"
-        ],
-        "pathogen": [
-          "Fusarium",
-          "Scedosporium"
         ]
       }
     },
@@ -5037,9 +4843,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -5163,9 +4966,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -5247,13 +5047,6 @@
         ]
       }
     },
-    "NCT00897975": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT00904995": {
       "antifungals": {
         "condition": [
@@ -5299,13 +5092,6 @@
         "intervention": [
           "clotrimazole",
           "miconazole"
-        ]
-      }
-    },
-    "NCT00924092": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -5486,9 +5272,6 @@
         "condition": [
           "cryptococcosis",
           "cryptococcal meningitis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -5642,13 +5425,6 @@
       "antifungals": {
         "intervention": [
           "fluconazole"
-        ]
-      }
-    },
-    "NCT01028274": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -5817,9 +5593,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -5850,9 +5623,6 @@
         "condition": [
           "cryptococcosis",
           "cryptococcal meningitis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -6055,9 +5825,6 @@
         "condition": [
           "aspergillosis",
           "cryptococcosis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -6080,20 +5847,10 @@
         ]
       }
     },
-    "NCT01139398": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01139749": {
       "antifungals": {
         "intervention": [
           "ciclopirox"
-        ],
-        "pathogen": [
-          "Malassezia"
         ]
       }
     },
@@ -6590,13 +6347,6 @@
         ]
       }
     },
-    "NCT01269762": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01270490": {
       "antifungals": {
         "condition": [
@@ -6768,13 +6518,6 @@
         ]
       }
     },
-    "NCT01308437": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01310738": {
       "antifungals": {
         "intervention": [
@@ -6892,20 +6635,6 @@
         ]
       }
     },
-    "NCT01346657": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
-    "NCT01346670": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01349998": {
       "antifungals": {
         "condition": [
@@ -6927,20 +6656,6 @@
       "antifungals": {
         "intervention": [
           "fluconazole"
-        ]
-      }
-    },
-    "NCT01354327": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
-    "NCT01354340": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -6967,13 +6682,6 @@
         ]
       }
     },
-    "NCT01370837": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01377480": {
       "antifungals": {
         "intervention": [
@@ -6995,13 +6703,6 @@
         ],
         "intervention": [
           "voriconazole"
-        ]
-      }
-    },
-    "NCT01385020": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -7210,9 +6911,6 @@
       "antifungals": {
         "condition": [
           "candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -7467,13 +7165,6 @@
         ]
       }
     },
-    "NCT01519817": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01520896": {
       "antifungals": {
         "intervention": [
@@ -7511,13 +7202,6 @@
       "antifungals": {
         "intervention": [
           "flucytosine"
-        ]
-      }
-    },
-    "NCT01527669": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -7567,9 +7251,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -7592,13 +7273,6 @@
         "intervention": [
           "clotrimazole",
           "miconazole"
-        ]
-      }
-    },
-    "NCT01548118": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -7627,13 +7301,6 @@
       "antifungals": {
         "intervention": [
           "isavuconazole"
-        ]
-      }
-    },
-    "NCT01562080": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -7768,9 +7435,6 @@
         "condition": [
           "cryptococcosis",
           "cryptococcal meningitis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -7915,9 +7579,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -8045,13 +7706,6 @@
         ]
       }
     },
-    "NCT01687049": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01688817": {
       "antifungals": {
         "condition": [
@@ -8172,9 +7826,6 @@
         "intervention": [
           "fluconazole",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -8354,9 +8005,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -8450,10 +8098,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Candida albicans",
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -8551,13 +8195,6 @@
       "antifungals": {
         "intervention": [
           "fluconazole"
-        ]
-      }
-    },
-    "NCT01829373": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -8691,9 +8328,6 @@
         ],
         "intervention": [
           "voriconazole"
-        ],
-        "pathogen": [
-          "Fusarium"
         ]
       }
     },
@@ -8725,9 +8359,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -8837,9 +8468,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -8999,13 +8627,6 @@
         ]
       }
     },
-    "NCT01989572": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT01993823": {
       "antifungals": {
         "intervention": [
@@ -9104,9 +8725,6 @@
         "intervention": [
           "echinocandin",
           "anidulafungin"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -9206,13 +8824,6 @@
       "antifungals": {
         "intervention": [
           "ketoconazole"
-        ]
-      }
-    },
-    "NCT02078167": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -9394,9 +9005,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -9415,13 +9023,6 @@
       "antifungals": {
         "intervention": [
           "nystatin"
-        ]
-      }
-    },
-    "NCT02142569": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -9448,9 +9049,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -9829,13 +9427,6 @@
         ]
       }
     },
-    "NCT02257047": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT02259010": {
       "antifungals": {
         "intervention": [
@@ -9870,9 +9461,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -9929,13 +9517,6 @@
         ]
       }
     },
-    "NCT02295176": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT02297126": {
       "antifungals": {
         "intervention": [
@@ -9948,13 +9529,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT02301611": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -10157,13 +9731,6 @@
       "antifungals": {
         "intervention": [
           "voriconazole"
-        ]
-      }
-    },
-    "NCT02383498": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -10404,13 +9971,6 @@
         ]
       }
     },
-    "NCT02492464": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT02492802": {
       "antifungals": {
         "intervention": [
@@ -10476,13 +10036,6 @@
       "antifungals": {
         "intervention": [
           "echinocandin"
-        ]
-      }
-    },
-    "NCT02525003": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -10643,13 +10196,6 @@
         ]
       }
     },
-    "NCT02603276": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT02603575": {
       "antifungals": {
         "condition": [
@@ -10710,9 +10256,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -10819,9 +10362,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -10902,13 +10442,6 @@
         ]
       }
     },
-    "NCT02678741": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT02679456": {
       "antifungals": {
         "condition": [
@@ -10959,9 +10492,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -10969,13 +10499,6 @@
       "antifungals": {
         "intervention": [
           "voriconazole"
-        ]
-      }
-    },
-    "NCT02689934": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11026,9 +10549,6 @@
         "intervention": [
           "voriconazole",
           "posaconazole"
-        ],
-        "pathogen": [
-          "Fusarium"
         ]
       }
     },
@@ -11036,13 +10556,6 @@
       "antifungals": {
         "condition": [
           "aspergillosis"
-        ]
-      }
-    },
-    "NCT02720575": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11059,13 +10572,6 @@
         "condition": [
           "tinea capitis",
           "dermatomycosis"
-        ]
-      }
-    },
-    "NCT02726555": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11115,9 +10621,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11159,20 +10662,6 @@
         ],
         "intervention": [
           "olorofim"
-        ]
-      }
-    },
-    "NCT02740777": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
-    "NCT02740790": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11326,13 +10815,6 @@
         ],
         "intervention": [
           "efinaconazole"
-        ]
-      }
-    },
-    "NCT02814695": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11712,9 +11194,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -11753,9 +11232,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11773,13 +11249,6 @@
         ]
       }
     },
-    "NCT02996448": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT02997059": {
       "antifungals": {
         "intervention": [
@@ -11794,9 +11263,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -11906,13 +11372,6 @@
         ]
       }
     },
-    "NCT03051399": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT03059992": {
       "antifungals": {
         "condition": [
@@ -11939,13 +11398,6 @@
         "intervention": [
           "clotrimazole",
           "miconazole"
-        ]
-      }
-    },
-    "NCT03065491": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -11976,9 +11428,6 @@
       "antifungals": {
         "condition": [
           "onychomycosis"
-        ],
-        "pathogen": [
-          "Trichophyton rubrum"
         ]
       }
     },
@@ -12119,9 +11568,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -12293,9 +11739,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -12381,13 +11824,6 @@
         ]
       }
     },
-    "NCT03207516": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT03209648": {
       "antifungals": {
         "intervention": [
@@ -12407,9 +11843,6 @@
         "condition": [
           "onychomycosis",
           "dermatomycosis"
-        ],
-        "pathogen": [
-          "Trichophyton rubrum"
         ]
       }
     },
@@ -12420,22 +11853,12 @@
         ]
       }
     },
-    "NCT03223987": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT03226379": {
       "antifungals": {
         "condition": [
           "cryptococcosis",
           "cryptococcal meningitis",
           "coccidioidomycosis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -12666,13 +12089,6 @@
         ]
       }
     },
-    "NCT03329248": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT03333005": {
       "antifungals": {
         "intervention": [
@@ -12752,9 +12168,6 @@
         ],
         "intervention": [
           "ibrexafungerp"
-        ],
-        "pathogen": [
-          "Candida auris"
         ]
       }
     },
@@ -12763,9 +12176,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -12797,27 +12207,6 @@
       "antifungals": {
         "condition": [
           "coccidioidomycosis"
-        ]
-      }
-    },
-    "NCT03387085": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
-    "NCT03387098": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
-    "NCT03387111": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -12948,13 +12337,6 @@
         ]
       }
     },
-    "NCT03462862": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT03468803": {
       "antifungals": {
         "condition": [
@@ -12993,9 +12375,6 @@
         "intervention": [
           "voriconazole",
           "isavuconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -13021,13 +12400,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT03495362": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13073,13 +12445,6 @@
         "intervention": [
           "itraconazole",
           "voriconazole"
-        ]
-      }
-    },
-    "NCT03522272": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13129,13 +12494,6 @@
         ]
       }
     },
-    "NCT03552718": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT03554239": {
       "antifungals": {
         "intervention": [
@@ -13165,9 +12523,6 @@
         ],
         "intervention": [
           "oteseconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13179,16 +12534,6 @@
         ],
         "intervention": [
           "oteseconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
-    "NCT03563170": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13213,13 +12558,6 @@
         "intervention": [
           "clotrimazole",
           "miconazole"
-        ]
-      }
-    },
-    "NCT03574844": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13249,9 +12587,6 @@
         ],
         "intervention": [
           "caspofungin"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13268,9 +12603,6 @@
           "clotrimazole",
           "miconazole",
           "olorofim"
-        ],
-        "pathogen": [
-          "Scedosporium"
         ]
       }
     },
@@ -13297,16 +12629,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
-        ]
-      }
-    },
-    "NCT03607383": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13611,9 +12933,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13828,9 +13147,6 @@
         "intervention": [
           "fluconazole",
           "oteseconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13881,16 +13197,6 @@
       "antifungals": {
         "condition": [
           "aspergillosis"
-        ],
-        "pathogen": [
-          "Aspergillus fumigatus"
-        ]
-      }
-    },
-    "NCT03873350": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -13968,9 +13274,6 @@
         "intervention": [
           "clotrimazole",
           "miconazole"
-        ],
-        "pathogen": [
-          "Aspergillus fumigatus"
         ]
       }
     },
@@ -14014,13 +13317,6 @@
         ]
       }
     },
-    "NCT03923894": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT03928327": {
       "antifungals": {
         "intervention": [
@@ -14032,13 +13328,6 @@
       "antifungals": {
         "intervention": [
           "fluconazole"
-        ]
-      }
-    },
-    "NCT03930745": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -14089,9 +13378,6 @@
           "fluconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -14139,9 +13425,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -14164,9 +13447,6 @@
         ],
         "intervention": [
           "ibrexafungerp"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -14262,9 +13542,6 @@
         "intervention": [
           "fluconazole",
           "ibrexafungerp"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -14284,9 +13561,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -14294,9 +13568,6 @@
       "antifungals": {
         "condition": [
           "cryptococcosis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -14360,9 +13631,6 @@
       "antifungals": {
         "intervention": [
           "ketoconazole"
-        ],
-        "pathogen": [
-          "Malassezia"
         ]
       }
     },
@@ -14411,9 +13679,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -14574,9 +13839,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -14613,9 +13875,6 @@
         ],
         "intervention": [
           "fosmanogepix"
-        ],
-        "pathogen": [
-          "Candida auris"
         ]
       }
     },
@@ -14766,13 +14025,6 @@
         ]
       }
     },
-    "NCT04215458": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT04218851": {
       "antifungals": {
         "condition": [
@@ -14848,12 +14100,6 @@
         ],
         "intervention": [
           "fosmanogepix"
-        ],
-        "pathogen": [
-          "Rhizopus",
-          "Mucorales",
-          "Fusarium",
-          "Scedosporium"
         ]
       }
     },
@@ -15502,13 +14748,6 @@
         ]
       }
     },
-    "NCT04683575": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT04684524": {
       "antifungals": {
         "condition": [
@@ -15794,9 +15033,6 @@
       "antifungals": {
         "intervention": [
           "nystatin"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -15840,9 +15076,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -15946,9 +15179,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ],
-        "pathogen": [
-          "Malassezia"
         ]
       }
     },
@@ -15997,9 +15227,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -16105,9 +15332,6 @@
       "antifungals": {
         "intervention": [
           "posaconazole"
-        ],
-        "pathogen": [
-          "Malassezia"
         ]
       }
     },
@@ -16198,9 +15422,6 @@
         "intervention": [
           "itraconazole",
           "terbinafine"
-        ],
-        "pathogen": [
-          "Malassezia"
         ]
       }
     },
@@ -16250,13 +15471,6 @@
         ]
       }
     },
-    "NCT05074303": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT05074602": {
       "antifungals": {
         "condition": [
@@ -16301,13 +15515,6 @@
         "condition": [
           "onychomycosis",
           "dermatomycosis"
-        ]
-      }
-    },
-    "NCT05095480": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -16374,9 +15581,6 @@
       "antifungals": {
         "intervention": [
           "terbinafine"
-        ],
-        "pathogen": [
-          "Malassezia"
         ]
       }
     },
@@ -16426,13 +15630,6 @@
         ],
         "intervention": [
           "terbinafine"
-        ]
-      }
-    },
-    "NCT05136378": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -16644,9 +15841,6 @@
       "antifungals": {
         "condition": [
           "candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -16696,13 +15890,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT05358743": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -16784,9 +15971,6 @@
         "intervention": [
           "fluconazole",
           "ibrexafungerp"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -16835,9 +16019,6 @@
           "echinocandin",
           "caspofungin",
           "fosmanogepix"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -16905,9 +16086,6 @@
           "isavuconazole",
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Mucorales"
         ]
       }
     },
@@ -16922,16 +16100,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
-        ]
-      }
-    },
-    "NCT05471661": {
-      "antifungals": {
-        "pathogen": [
-          "Aspergillus fumigatus"
         ]
       }
     },
@@ -16981,19 +16149,6 @@
         ],
         "intervention": [
           "fosmanogepix"
-        ],
-        "pathogen": [
-          "Rhizopus",
-          "Mucorales",
-          "Fusarium",
-          "Scedosporium"
-        ]
-      }
-    },
-    "NCT05492370": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -17027,21 +16182,11 @@
         ]
       }
     },
-    "NCT05506592": {
-      "antifungals": {
-        "pathogen": [
-          "Malassezia"
-        ]
-      }
-    },
     "NCT05507333": {
       "antifungals": {
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -17049,13 +16194,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT05524688": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -17105,9 +16243,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -17432,9 +16567,6 @@
           "cryptococcosis",
           "cryptococcal meningitis",
           "histoplasmosis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -17676,9 +16808,6 @@
         "intervention": [
           "amphotericin",
           "liposomal amphotericin B"
-        ],
-        "pathogen": [
-          "Histoplasma capsulatum"
         ]
       }
     },
@@ -17713,16 +16842,6 @@
           "clotrimazole",
           "miconazole",
           "rezafungin"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
-        ]
-      }
-    },
-    "NCT05836909": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -17745,13 +16864,6 @@
         "intervention": [
           "voriconazole",
           "posaconazole"
-        ]
-      }
-    },
-    "NCT05845580": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -17830,13 +16942,6 @@
         ]
       }
     },
-    "NCT05889845": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT05893927": {
       "antifungals": {
         "condition": [
@@ -17861,9 +16966,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -17927,9 +17029,6 @@
           "invasive fungal infection",
           "invasive fungal disease",
           "mucormycosis"
-        ],
-        "pathogen": [
-          "Mucorales"
         ]
       }
     },
@@ -17944,13 +17043,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT05939336": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18042,13 +17134,6 @@
         ]
       }
     },
-    "NCT06002893": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06004947": {
       "antifungals": {
         "intervention": [
@@ -18102,13 +17187,6 @@
         ]
       }
     },
-    "NCT06045377": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06049511": {
       "antifungals": {
         "intervention": [
@@ -18128,13 +17206,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ]
-      }
-    },
-    "NCT06066151": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18184,13 +17255,6 @@
         "condition": [
           "invasive fungal infection",
           "invasive fungal disease"
-        ]
-      }
-    },
-    "NCT06083350": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18307,9 +17371,6 @@
         "intervention": [
           "clotrimazole",
           "miconazole"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18363,13 +17424,6 @@
         ]
       }
     },
-    "NCT06172023": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06173596": {
       "antifungals": {
         "intervention": [
@@ -18408,9 +17462,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -18529,13 +17580,6 @@
         ]
       }
     },
-    "NCT06282510": {
-      "antifungals": {
-        "pathogen": [
-          "Candida auris"
-        ]
-      }
-    },
     "NCT06294561": {
       "antifungals": {
         "intervention": [
@@ -18580,13 +17624,6 @@
         ]
       }
     },
-    "NCT06307223": {
-      "antifungals": {
-        "pathogen": [
-          "Malassezia"
-        ]
-      }
-    },
     "NCT06327295": {
       "antifungals": {
         "condition": [
@@ -18607,13 +17644,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT06333158": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18687,13 +17717,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT06368258": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18798,16 +17821,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
-        ]
-      }
-    },
-    "NCT06417840": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18832,9 +17845,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18863,13 +17873,6 @@
         ]
       }
     },
-    "NCT06448585": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06449040": {
       "antifungals": {
         "intervention": [
@@ -18883,9 +17886,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -18903,13 +17903,6 @@
         ],
         "intervention": [
           "natamycin"
-        ]
-      }
-    },
-    "NCT06470126": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -19002,9 +17995,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -19031,9 +18021,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Talaromyces marneffei"
         ]
       }
     },
@@ -19091,24 +18078,10 @@
         ]
       }
     },
-    "NCT06563609": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06564727": {
       "antifungals": {
         "condition": [
           "aspergillosis"
-        ]
-      }
-    },
-    "NCT06564805": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -19124,9 +18097,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -19256,13 +18226,6 @@
         ]
       }
     },
-    "NCT06665126": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06666322": {
       "antifungals": {
         "condition": [
@@ -19275,9 +18238,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "flucytosine"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -19333,13 +18293,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT06689501": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -19641,13 +18594,6 @@
         ]
       }
     },
-    "NCT06861062": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06869681": {
       "antifungals": {
         "condition": [
@@ -19671,9 +18617,6 @@
       "antifungals": {
         "condition": [
           "cryptococcosis"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -19685,9 +18628,6 @@
         "intervention": [
           "echinocandin",
           "caspofungin"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -19713,13 +18653,6 @@
       "antifungals": {
         "intervention": [
           "itraconazole"
-        ]
-      }
-    },
-    "NCT06911177": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -19760,11 +18693,6 @@
       "antifungals": {
         "intervention": [
           "fosmanogepix"
-        ],
-        "pathogen": [
-          "Mucorales",
-          "Fusarium",
-          "Scedosporium"
         ]
       }
     },
@@ -19796,20 +18724,6 @@
         ]
       }
     },
-    "NCT06933420": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
-    "NCT06942208": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT06942936": {
       "antifungals": {
         "intervention": [
@@ -19832,9 +18746,6 @@
         ],
         "intervention": [
           "ibrexafungerp"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -19895,9 +18806,6 @@
         "condition": [
           "candidiasis",
           "vulvovaginal candidiasis"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -20029,9 +18937,6 @@
         "condition": [
           "onychomycosis",
           "dermatomycosis"
-        ],
-        "pathogen": [
-          "Trichophyton rubrum"
         ]
       }
     },
@@ -20093,13 +18998,6 @@
         ]
       }
     },
-    "NCT07079748": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT07080359": {
       "antifungals": {
         "intervention": [
@@ -20115,13 +19013,6 @@
           "voriconazole",
           "isavuconazole",
           "ketoconazole"
-        ]
-      }
-    },
-    "NCT07085858": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -20143,13 +19034,6 @@
       "antifungals": {
         "intervention": [
           "voriconazole"
-        ]
-      }
-    },
-    "NCT07106996": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -20189,9 +19073,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -20301,9 +19182,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -20441,13 +19319,6 @@
         ]
       }
     },
-    "NCT07303530": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT07308652": {
       "antifungals": {
         "intervention": [
@@ -20485,9 +19356,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -20583,9 +19451,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -20699,9 +19564,6 @@
         ],
         "intervention": [
           "itraconazole"
-        ],
-        "pathogen": [
-          "Trichophyton rubrum"
         ]
       }
     },
@@ -20911,13 +19773,6 @@
         ]
       }
     },
-    "NCT07561619": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
-        ]
-      }
-    },
     "NCT07565441": {
       "antifungals": {
         "intervention": [
@@ -20979,9 +19834,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -20996,13 +19848,6 @@
       "antifungals": {
         "intervention": [
           "fluconazole"
-        ]
-      }
-    },
-    "NCT07649096": {
-      "antifungals": {
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
@@ -21061,9 +19906,6 @@
       "antifungals": {
         "condition": [
           "pneumocystis pneumonia"
-        ],
-        "pathogen": [
-          "Pneumocystis jirovecii"
         ]
       }
     },
@@ -21155,9 +19997,6 @@
         ],
         "intervention": [
           "olorofim"
-        ],
-        "pathogen": [
-          "Coccidioides immitis"
         ]
       }
     },
@@ -21255,9 +20094,6 @@
           "amphotericin",
           "liposomal amphotericin B",
           "natamycin"
-        ],
-        "pathogen": [
-          "Fusarium"
         ]
       }
     },
@@ -21269,9 +20105,6 @@
         ],
         "intervention": [
           "fluconazole"
-        ],
-        "pathogen": [
-          "Cryptococcus neoformans"
         ]
       }
     },
@@ -21377,9 +20210,6 @@
         ],
         "intervention": [
           "nystatin"
-        ],
-        "pathogen": [
-          "Candida albicans"
         ]
       }
     },
