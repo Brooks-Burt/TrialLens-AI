@@ -660,45 +660,58 @@ mechanism. Pathogen is now a **lexicon matched against trial text**
 (`pathogen_lexicon`), derived by `normalize/pathogens.py` and stored in
 `attribute_provenance` with the matched span — not a corpus-selection query.
 
-### 2. The registry's search is semantic, so the corpus needs a precision audit
+### 2. The registry's search is semantic — and that is fine
 
 `query.cond` performs term **expansion**, not exact matching, and quoting a
-phrase does not make it exact. Which means every ingest query is inherently
-fuzzy, and the corpus contains trials nobody asked for:
+phrase does not make it exact. So an ingest query is inherently fuzzy:
 
 | Query | Also returned |
 |---|---|
-| `"Candida albicans"` | Red yeast rice cholesterol trials, HPV-16/18 vaccine immunogenicity, neuroblastoma beta-glucan studies, and *C. albicans* used as a **skin-test antigen** for neurogenic inflammation |
+| `"Candida albicans"` | Red yeast rice cholesterol trials, HPV-16/18 vaccine immunogenicity, and *C. albicans* used as a **skin-test antigen** for neurogenic inflammation |
 | `"pneumocystis pneumonia"` | Toxoplasmosis / pyrimethamine trials — a protozoan, not a fungus |
 | `"coccidioidomycosis"` | 22 unrelated trials |
 
-Measured on the first complete corpus: **193 of 2,470 trials (7.8%) had no
-fungal signal anywhere** in title, conditions, keywords, summary,
-interventions, or outcomes.
+Measured: 193 of 2,470 trials (7.8%) had no fungal signal anywhere in title,
+conditions, keywords, summary, interventions, or outcomes.
 
-This matters more than tidiness, because every headline number is a count
-over this corpus. "27 relevant trials", "14 companies", "most crowded
-indication" are all wrong if one trial in thirteen is a statin-intolerance
-study — and wrong in the confident, specific-looking way that survives a
-demo until someone who knows the field reads a row.
+**A relevance quarantine was built for this, and then deleted.** It worked —
+it produced the measurement above and flagged every trial with a reason. It
+was still the wrong layer.
 
-So `tests/test_coverage.py` (recall: did every term find trials?) is now
-paired with `normalize/relevance.py` (precision: is what we found actually
-on topic?). Flagged trials are **quarantined, not deleted** — the lexicon is
-a heuristic, and the first pass wrongly flagged an atovaquone/pyrimethamine
-PCP trial because the lexicon lacked PCP drugs even though *Pneumocystis*
-is a fungus. Deleting on a heuristic's word makes that error class
-unrecoverable and invisible. Keeping the rows also makes the quarantine rate
-a reportable metric, and "7.8% was off-target, here it is" is a stronger
-claim than a corpus that silently looks clean.
+The architecture is wide net at ingest, precision in `retrieve/`. Whether a
+trial is relevant depends on the **question**, and ingest does not know the
+question. A ketoconazole/midazolam interaction study scores near zero
+against "what does the competitive landscape for invasive candidiasis look
+like" — so structured scoring plus semantic ranking removes it for free,
+while a question about azole pharmacokinetics would want it kept. The
+quarantine spent a table, a module, and a build step duplicating that work,
+and every trial it excluded was one some other question might have needed.
+
+Recorded here rather than quietly dropped, because "the obvious filter is
+absent, and here is why" is the more useful note. The same reasoning retired
+a study-intent classifier that would have separated development programs
+from pharmacology probes: 15% of the corpus is DDI studies, and that is now
+fine.
+
+What the finding **does** change: nothing at ingest, but it is direct
+evidence for why `retrieve/` needs per-criterion structured scoring rather
+than treating "it came back from the registry" as relevance. The ablation in
+`docs/ABLATION.md` should include a polluting query to show the ranker
+demoting it.
 
 ### Corpus as built
 
 ```
-trials             2,470      DB file    29.4 MB (committable)
-  relevant         2,277      stored JSON 53% smaller than raw
-  quarantined        193      terms capped: 0 of 86
+trials             2,367      DB file    ~29 MB (committable)
+terms capped       0 of 86    stored JSON 54% smaller than raw
 ```
+
+That corpus was built from two dimensions (condition, intervention). Ingest
+now queries **five** — condition, intervention, sponsor, mechanism, and
+related terminology, 120 terms — so the next build will be larger. Sponsor
+covers antifungal-focused companies only; `query.spons=Pfizer` returns
+thousands of trials across every therapeutic area, so big pharma is reached
+through its compounds instead.
 
 Zero capped terms is what makes completeness a verified claim rather than
 an assumption. Phase distribution of the relevant set: 745 Phase 1, 327
