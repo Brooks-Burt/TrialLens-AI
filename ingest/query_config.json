@@ -10,7 +10,8 @@
     "sponsor_terms": "Antifungal-focused sponsors only, queried bare. Big pharma is deliberately absent: query.spons=Pfizer returns thousands of interventional trials across every therapeutic area, with no antifungal constraint on them. Those sponsors are reached through their compounds in intervention_terms -- Pfizer via fluconazole and voriconazole, Merck via caspofungin and posaconazole, Gilead via liposomal amphotericin B, Astellas via micafungin. Astellas was initially included on the assumption its portfolio was antifungal-heavy enough to be safe. It returned 1,138 trials -- transplant immunology, oncology and urology -- which would have been roughly 40% of the corpus. Removed. The assumption was wrong and the run summary is what showed it, which is the argument for reporting per-term hit counts at all.",
     "known_zero": "Terms verified to return zero, kept with a written reason and enforced by tests/test_coverage.py. This is CONFIG VALIDATION, not corpus filtering -- the point is to catch a typo or a discontinued code name, which is why a genuine documented zero needs an explicit exemption rather than a loosened assertion.",
     "population_terms": "HOST POPULATIONS, anchored. These are populations where antifungal prophylaxis and empiric therapy are studied -- not antifungal indications. Queried as query.cond AND query.term=<population_anchor>, so 'hematopoietic stem cell transplantation' returns HSCT trials that mention antifungal rather than all HSCT trials. Learned from the cap: unanchored, HSCT hit the 2000 runaway guard, and essentially all of that is GVHD, conditioning regimens, and graft manipulation. That is not recall, it is a different disease area taking over the corpus -- the cap firing was the term telling us it was the wrong shape. The anchor is NOT the v1 cond-AND-intr mistake. v1 required BOTH dimensions for every trial in the corpus, which discarded novel assets whose intervention is a development code. This anchors ONE dimension that is meaningless unanchored, and it preserves the recall that matters: a prophylaxis trial of an unfamiliar compound in HSCT patients still matches on the word antifungal, where dropping the term entirely would have missed it.",
-    "registry_phrasing": "Mechanism and related terms must be phrased as a TRIAL RECORD would phrase them, not as a paper would. Measured on the first six-dimension run: 'beta-1,3-glucan synthase' returned 0 while 'glucan synthase inhibitor' returned 1; 'Gwt1 inhibitor', 'chitin synthase inhibitor', 'lanosterol 14-alpha-demethylase', 'GPI anchor biosynthesis', 'orotomide' and 'echinocandin resistance' all returned 0. 'pre-emptive antifungal therapy' returned 0 purely because of the hyphen. This is the same lesson as the pathogen lexicon: the registry is written by sponsors filling in a form, not by authors writing a review, so specific mechanistic vocabulary is usually absent even when the mechanism is the whole point of the trial. Prefer the shortest defensible form and drop the '-inhibitor' suffix."
+    "registry_phrasing": "Mechanism and related terms must be phrased as a TRIAL RECORD would phrase them, not as a paper would. Measured on the first six-dimension run: 'beta-1,3-glucan synthase' returned 0 while 'glucan synthase inhibitor' returned 1; 'Gwt1 inhibitor', 'chitin synthase inhibitor', 'lanosterol 14-alpha-demethylase', 'GPI anchor biosynthesis', 'orotomide' and 'echinocandin resistance' all returned 0. 'pre-emptive antifungal therapy' returned 0 purely because of the hyphen. This is the same lesson as the pathogen lexicon: the registry is written by sponsors filling in a form, not by authors writing a review, so specific mechanistic vocabulary is usually absent even when the mechanism is the whole point of the trial. Prefer the shortest defensible form and drop the '-inhibitor' suffix.",
+    "mechanism_redundancy": "A mechanism term only earns its place if it can catch a trial whose DRUG we do not already list. For a mechanism with exactly one known compound it is redundant by construction, and the run proved it: 'chitin synthase' and 'Gwt1' both returned 0 while their only compounds -- nikkomycin and fosmanogepix -- are intervention terms that return hits. Removed rather than exempted via known_zero, because they are not informative zeros; they are duplicated coverage that happens to be spelled differently. The mechanism dimension pays for itself on CLASS terms with many members ('echinocandin' 150, 'azole antifungal' 11) where a trial can name a class without naming a compound we know."
   },
   "antifungals": {
     "description": "Antifungal trials. The single enabled area in v2, covered completely rather than sampled -- run with a high --max-per-term so the run summary can report zero capped terms, which is what makes completeness a verified claim instead of an assumption.",
@@ -177,7 +178,6 @@
       "Matinas BioPharma",
       "Mycovia Pharmaceuticals",
       "Pulmocide",
-      "Amplyx",
       "Appili Therapeutics",
       "Melinta Therapeutics",
       "Mundipharma",
@@ -191,8 +191,6 @@
       "allylamine antifungal",
       "glucan synthase inhibitor",
       "glucan synthase",
-      "chitin synthase",
-      "Gwt1",
       "ergosterol biosynthesis",
       "ergosterol",
       "squalene epoxidase",
@@ -232,11 +230,13 @@
       "hematopoietic stem cell transplantation",
       "lung transplantation",
       "chronic granulomatous disease",
-      "solid organ transplantation",
       "acute myeloid leukemia",
       "graft versus host disease",
       "HIV infection",
-      "intensive care unit"
+      "intensive care unit",
+      "organ transplantation",
+      "kidney transplantation",
+      "liver transplantation"
     ],
     "population_anchor": "antifungal"
   },
