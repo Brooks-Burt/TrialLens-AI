@@ -302,14 +302,21 @@ def build_programs(conn: sqlite3.Connection, resolver: AssetResolver,
     links: list[tuple[str, str, str]] = []
 
     rows = conn.execute(
-        "SELECT nct_id, sponsor, interventions FROM trials ORDER BY nct_id"
+        "SELECT nct_id, sponsor, interventions, raw_json FROM trials ORDER BY nct_id"
     ).fetchall()
 
-    for nct_id, sponsor, interventions_json in rows:
+    for nct_id, sponsor, interventions_json, raw_json in rows:
         stats["trials"] += 1
         sponsor = sponsor or "(sponsor not reported)"
         sponsor_norm = normalize_sponsor(sponsor) or "unknown"
         sponsor_norm = resolver.sponsor_aliases.get(sponsor_norm, sponsor_norm)
+        sponsor_class = (
+            json.loads(raw_json)
+            .get("protocolSection", {})
+            .get("sponsorCollaboratorsModule", {})
+            .get("leadSponsor", {})
+            .get("class")
+        )
         matched_any = False
 
         for raw_name in json.loads(interventions_json or "[]"):
@@ -340,6 +347,7 @@ def build_programs(conn: sqlite3.Connection, resolver: AssetResolver,
                 "sponsor_norm": sponsor_norm,
                 "drug_class": meta.get("class"),
                 "match_method": resolver.match_method(raw_name, value),
+                "sponsor_class": sponsor_class,
             })
             links.append((program_id, nct_id, raw_name))
             matched_any = True
@@ -359,18 +367,19 @@ def build_programs(conn: sqlite3.Connection, resolver: AssetResolver,
         conn.execute(
             """
             INSERT INTO programs (program_id, asset_name, asset_norm, sponsor,
-                                  sponsor_norm, drug_class, match_method,
-                                  created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  sponsor_norm, sponsor_class, drug_class,
+                                  match_method, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(program_id) DO UPDATE SET
-                asset_name   = excluded.asset_name,
-                drug_class   = excluded.drug_class,
-                match_method = excluded.match_method,
-                updated_at   = excluded.updated_at
+                asset_name    = excluded.asset_name,
+                drug_class    = excluded.drug_class,
+                sponsor_class = COALESCE(excluded.sponsor_class, programs.sponsor_class),
+                match_method  = excluded.match_method,
+                updated_at    = excluded.updated_at
             """,
             (program["program_id"], program["asset_name"], program["asset_norm"],
-             program["sponsor"], program["sponsor_norm"], program["drug_class"],
-             program["match_method"], now, now),
+             program["sponsor"], program["sponsor_norm"], program["sponsor_class"],
+             program["drug_class"], program["match_method"], now, now),
         )
 
     for program_id, nct_id, matched_on in links:

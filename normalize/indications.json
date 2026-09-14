@@ -1,0 +1,675 @@
+{
+  "_README": {
+    "purpose": "Controlled vocabulary collapsing CT.gov condition strings onto canonical indications, so crowding counts mean something. Read by normalize/indications.py.",
+    "why_this_is_needed": "The corpus contains 2,196 distinct condition strings across 5,184 mentions -- a mean of 2.4 mentions each, so the tail is enormous. 'Candidiasis, Vulvovaginal', 'Vulvovaginal Candidiasis', 'Vaginal Candidiasis' and 'Recurrent Vulvovaginal Candidiasis' are four strings for one market. Counting distinct programs per raw string would split every indication across its spellings and report a landscape as less crowded than it is -- which is the direction that matters, because 'this space has room' is the conclusion someone would act on.",
+    "four_outcomes_not_two": "Classifying a condition as indication-or-other loses information the wide net specifically collected. The top conditions in this corpus are Healthy (177), HIV Infections (144), Acute Myeloid Leukemia (44) and Prostate Cancer (33). Those are not fungal indications, but they are not equivalent to each other either: Healthy and AML are the SETTING a trial ran in, HIV is a host risk factor, and prostate cancer is ketoconazole being used as an anti-androgen -- genuinely off-topic. So: indication / population / study_label / off_topic, each counted and reported separately.",
+    "specificity": "'specific' indications are real markets. 'umbrella' ones -- Fungal Infection, Mycoses, Invasive Fungal Infection -- are registry shorthand covering many markets at once, and 68+45+38+17+13 mentions of them is too many to discard. They are kept as their own bucket and EXCLUDED from crowding denominators, because a program tagged only 'invasive fungal infection' cannot be attributed to a specific market without inventing the attribution.",
+    "parent": "Roll-up for broader views: candidemia -> invasive candidiasis -> candidiasis. Lets the dashboard answer both 'how crowded is candidemia' and 'how crowded is candidiasis overall' from one pass, without a second vocabulary.",
+    "mesh_inversion": "CT.gov carries MeSH descriptors in inverted form -- 'Candidiasis, Oral', 'Meningitis, Cryptococcal', 'Pneumonia, Pneumocystis Carinii'. normalize/indications.py de-inverts on comma mechanically before alias lookup, which multiplies the coverage of every alias listed here. Explicit aliases are still listed for the frequent ones so the mapping is inspectable rather than dependent on a transform.",
+    "unmapped_are_reported": "A string matching nothing lands in 'unmapped' with its count, never silently dropped. That count is the maintenance signal: if it grows after a re-ingest, the vocabulary has drifted behind the corpus. Same reasoning as the dictionary-gap metric in normalize/programs.py.",
+    "unmapped_is_unbounded": "27% of condition mentions are unmapped (1,420 of 5,184; 1,048 distinct) and that is the correct steady state, not a gap to close. The tail is osteoarthritis, glioblastoma, Crohn's disease, constipation, rheumatoid arthritis -- real conditions in trials the wide net accepted, and the set of non-fungal diseases has no bound. Enumerating off_topic to cover them is the same impossible task as enumerating every non-antifungal drug in asset_aliases.json, which is why that file's exclusion list is also deliberately partial. What matters is that unmapped strings are COUNTED, so a sudden jump signals vocabulary drift, and that a trial with no mapped indication is simply absent from the indication axis rather than bucketed into a wrong one.",
+    "drug_names_in_conditions": "Sponsors sometimes put the DRUG in the conditions field: 'Voriconazole' appears 5 times and 'Fluconazole' 4 as condition values. Those are classified as study_label rather than left unmapped, because the trial is about the drug's pharmacology, not about a disease called voriconazole. Detected by matching the condition string against asset_aliases.json rather than by listing drug names here twice."
+  },
+  "indications": {
+    "candidiasis": {
+      "canonical": "Candidiasis",
+      "parent": null,
+      "specificity": "umbrella",
+      "aliases": [
+        "candida infection",
+        "candida infections",
+        "candidosis",
+        "candida"
+      ]
+    },
+    "invasive candidiasis": {
+      "canonical": "Invasive Candidiasis",
+      "parent": "candidiasis",
+      "specificity": "specific",
+      "aliases": [
+        "systemic candidiasis",
+        "disseminated candidiasis",
+        "invasive candidosis",
+        "candidiasis invasive",
+        "invasive candidiases",
+        "candidiasis invasive infection"
+      ]
+    },
+    "candidemia": {
+      "canonical": "Candidemia",
+      "parent": "invasive candidiasis",
+      "specificity": "specific",
+      "aliases": [
+        "candidaemia",
+        "candida bloodstream infection",
+        "candidemia and/or invasive candidiasis"
+      ]
+    },
+    "oropharyngeal candidiasis": {
+      "canonical": "Oropharyngeal Candidiasis",
+      "parent": "candidiasis",
+      "specificity": "specific",
+      "aliases": [
+        "oral candidiasis",
+        "candidiasis oral",
+        "thrush",
+        "oral thrush",
+        "oropharyngeal candidosis",
+        "denture stomatitis",
+        "candida-associated denture stomatitis"
+      ]
+    },
+    "esophageal candidiasis": {
+      "canonical": "Esophageal Candidiasis",
+      "parent": "candidiasis",
+      "specificity": "specific",
+      "aliases": [
+        "candidiasis esophageal",
+        "oesophageal candidiasis"
+      ]
+    },
+    "vulvovaginal candidiasis": {
+      "canonical": "Vulvovaginal Candidiasis",
+      "parent": "candidiasis",
+      "specificity": "specific",
+      "aliases": [
+        "candidiasis vulvovaginal",
+        "vaginal candidiasis",
+        "recurrent vulvovaginal candidiasis",
+        "vulvovaginal candidosis",
+        "vaginal yeast infection",
+        "vulvovaginitis candida",
+        "candida vulvovaginitis",
+        "recurrent vaginal candidiasis"
+      ]
+    },
+    "candiduria": {
+      "canonical": "Candiduria",
+      "parent": "candidiasis",
+      "specificity": "specific",
+      "aliases": []
+    },
+    "aspergillosis": {
+      "canonical": "Aspergillosis",
+      "parent": null,
+      "specificity": "umbrella",
+      "aliases": [
+        "aspergillus infection",
+        "aspergillus"
+      ]
+    },
+    "invasive aspergillosis": {
+      "canonical": "Invasive Aspergillosis",
+      "parent": "aspergillosis",
+      "specificity": "specific",
+      "aliases": [
+        "invasive pulmonary aspergillosis",
+        "aspergillosis invasive",
+        "ipa",
+        "invasive aspergillus infection"
+      ]
+    },
+    "chronic pulmonary aspergillosis": {
+      "canonical": "Chronic Pulmonary Aspergillosis",
+      "parent": "aspergillosis",
+      "specificity": "specific",
+      "aliases": [
+        "aspergilloma",
+        "chronic cavitary pulmonary aspergillosis",
+        "cavitary pulmonary aspergillosis",
+        "cpa"
+      ]
+    },
+    "allergic bronchopulmonary aspergillosis": {
+      "canonical": "Allergic Bronchopulmonary Aspergillosis",
+      "parent": "aspergillosis",
+      "specificity": "specific",
+      "aliases": [
+        "abpa",
+        "allergic bronchopulmonary mycosis",
+        "severe asthma with fungal sensitisation",
+        "severe asthma with fungal sensitization"
+      ]
+    },
+    "cryptococcosis": {
+      "canonical": "Cryptococcosis",
+      "parent": null,
+      "specificity": "umbrella",
+      "aliases": [
+        "cryptococcal infection",
+        "cryptococcus infection"
+      ]
+    },
+    "cryptococcal meningitis": {
+      "canonical": "Cryptococcal Meningitis",
+      "parent": "cryptococcosis",
+      "specificity": "specific",
+      "aliases": [
+        "meningitis cryptococcal",
+        "cryptococcal meningoencephalitis",
+        "cryptococcal meningitis hiv"
+      ]
+    },
+    "pneumocystis pneumonia": {
+      "canonical": "Pneumocystis Pneumonia",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "pneumonia pneumocystis carinii",
+        "pneumocystis carinii pneumonia",
+        "pneumocystis jirovecii pneumonia",
+        "pcp",
+        "pneumocystosis",
+        "pneumonia pneumocystis",
+        "pneumocystis",
+        "pneumocystis infection",
+        "pneumocystis jirovecii"
+      ]
+    },
+    "mucormycosis": {
+      "canonical": "Mucormycosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "zygomycosis",
+        "rhino-orbital-cerebral mucormycosis",
+        "rhinocerebral mucormycosis",
+        "mucorales infection"
+      ]
+    },
+    "fusariosis": {
+      "canonical": "Fusariosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "fusarium infection",
+        "invasive fusariosis"
+      ]
+    },
+    "scedosporiosis": {
+      "canonical": "Scedosporiosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "scedosporium infection",
+        "lomentospora infection"
+      ]
+    },
+    "coccidioidomycosis": {
+      "canonical": "Coccidioidomycosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "valley fever",
+        "coccidioidal meningitis",
+        "coccidioides infection"
+      ]
+    },
+    "histoplasmosis": {
+      "canonical": "Histoplasmosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "disseminated histoplasmosis",
+        "histoplasma infection"
+      ]
+    },
+    "blastomycosis": {
+      "canonical": "Blastomycosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "blastomyces infection"
+      ]
+    },
+    "sporotrichosis": {
+      "canonical": "Sporotrichosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "sporothrix infection"
+      ]
+    },
+    "talaromycosis": {
+      "canonical": "Talaromycosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "penicilliosis",
+        "penicillium marneffei infection",
+        "talaromyces marneffei infection"
+      ]
+    },
+    "paracoccidioidomycosis": {
+      "canonical": "Paracoccidioidomycosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": []
+    },
+    "onychomycosis": {
+      "canonical": "Onychomycosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "onychomycosis of toenail",
+        "toenail onychomycosis",
+        "tinea unguium",
+        "fungal nail infection",
+        "nail fungus",
+        "distal subungual onychomycosis",
+        "onychomycoses"
+      ]
+    },
+    "tinea pedis": {
+      "canonical": "Tinea Pedis",
+      "parent": "dermatophytosis",
+      "specificity": "specific",
+      "aliases": [
+        "athlete's foot",
+        "athletes foot",
+        "foot ringworm"
+      ]
+    },
+    "tinea capitis": {
+      "canonical": "Tinea Capitis",
+      "parent": "dermatophytosis",
+      "specificity": "specific",
+      "aliases": [
+        "scalp ringworm"
+      ]
+    },
+    "tinea corporis": {
+      "canonical": "Tinea Corporis",
+      "parent": "dermatophytosis",
+      "specificity": "specific",
+      "aliases": [
+        "ringworm"
+      ]
+    },
+    "tinea cruris": {
+      "canonical": "Tinea Cruris",
+      "parent": "dermatophytosis",
+      "specificity": "specific",
+      "aliases": [
+        "jock itch"
+      ]
+    },
+    "tinea manuum": {
+      "canonical": "Tinea Manuum",
+      "parent": "dermatophytosis",
+      "specificity": "specific",
+      "aliases": []
+    },
+    "dermatophytosis": {
+      "canonical": "Dermatophytosis",
+      "parent": null,
+      "specificity": "umbrella",
+      "aliases": [
+        "dermatomycosis",
+        "dermatomycoses",
+        "tinea",
+        "dermatophyte infection",
+        "superficial mycosis",
+        "superficial fungal infection",
+        "cutaneous candidiasis",
+        "cutaneous mycosis",
+        "skin fungal infection"
+      ]
+    },
+    "pityriasis versicolor": {
+      "canonical": "Pityriasis Versicolor",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "tinea versicolor",
+        "malassezia infection",
+        "seborrheic dermatitis",
+        "malassezia folliculitis",
+        "dandruff"
+      ]
+    },
+    "fungal keratitis": {
+      "canonical": "Fungal Keratitis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "mycotic keratitis",
+        "keratomycosis",
+        "fungal corneal ulcer"
+      ]
+    },
+    "fungal endophthalmitis": {
+      "canonical": "Fungal Endophthalmitis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "candida endophthalmitis"
+      ]
+    },
+    "otomycosis": {
+      "canonical": "Otomycosis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "fungal otitis externa"
+      ]
+    },
+    "fungal sinusitis": {
+      "canonical": "Fungal Sinusitis",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "allergic fungal sinusitis",
+        "allergic fungal rhinosinusitis",
+        "fungal rhinosinusitis"
+      ]
+    },
+    "mycetoma": {
+      "canonical": "Mycetoma",
+      "parent": null,
+      "specificity": "specific",
+      "aliases": [
+        "eumycetoma"
+      ]
+    },
+    "invasive fungal infection": {
+      "canonical": "Invasive Fungal Infection",
+      "parent": null,
+      "specificity": "umbrella",
+      "aliases": [
+        "invasive fungal infections",
+        "invasive fungal disease",
+        "invasive fungal diseases",
+        "invasive mycosis",
+        "invasive mycoses",
+        "ifi",
+        "ifd",
+        "systemic fungal infection",
+        "systemic mycosis",
+        "opportunistic fungal infection",
+        "invasive mold infection",
+        "invasive mould infection",
+        "mold infection",
+        "mould infection",
+        "filamentous fungal infection"
+      ]
+    },
+    "fungal infection": {
+      "canonical": "Fungal Infection (unspecified)",
+      "parent": null,
+      "specificity": "umbrella",
+      "aliases": [
+        "fungal infections",
+        "mycoses",
+        "mycosis",
+        "fungal disease",
+        "fungal diseases",
+        "mycotic infection",
+        "antifungal",
+        "fungus infection"
+      ]
+    },
+    "fungemia": {
+      "canonical": "Fungemia",
+      "parent": "invasive fungal infection",
+      "specificity": "specific",
+      "aliases": [
+        "fungaemia",
+        "fungal bloodstream infection",
+        "fungal sepsis"
+      ]
+    }
+  },
+  "populations": {
+    "_note": "The SETTING a trial ran in, not what it treats. Counted and reported, never mixed into the indication axis. 'Healthy' at 177 mentions plus its four spelling variants is the largest single condition value in the corpus, and it is a phase-1 marker rather than a market.",
+    "healthy volunteers": {
+      "canonical": "Healthy Volunteers",
+      "aliases": [
+        "healthy",
+        "healthy volunteer",
+        "healthy volunteers",
+        "healthy subjects",
+        "healthy subject",
+        "healthy participants",
+        "healthy participant",
+        "healthy adults",
+        "healthy adult",
+        "healthy male volunteers",
+        "normal volunteers"
+      ]
+    },
+    "hiv infection": {
+      "canonical": "HIV Infection",
+      "aliases": [
+        "hiv infections",
+        "hiv",
+        "hiv-1 infection",
+        "aids",
+        "acquired immunodeficiency syndrome",
+        "hiv/aids"
+      ]
+    },
+    "neutropenia": {
+      "canonical": "Neutropenia",
+      "aliases": [
+        "febrile neutropenia",
+        "neutropenic fever",
+        "chemotherapy-induced neutropenia",
+        "agranulocytosis"
+      ]
+    },
+    "hematologic malignancy": {
+      "canonical": "Hematologic Malignancy",
+      "aliases": [
+        "acute myeloid leukemia",
+        "acute myelogenous leukemia",
+        "aml",
+        "leukemia",
+        "leukaemia",
+        "myelodysplastic syndrome",
+        "myelodysplastic syndromes",
+        "mds",
+        "lymphoma",
+        "multiple myeloma",
+        "acute lymphoblastic leukemia",
+        "all",
+        "chronic lymphocytic leukemia",
+        "hematological malignancies",
+        "hematologic malignancies",
+        "hematopoietic malignancy",
+        "hematological malignancy",
+        "hematological malignancies",
+        "haematological malignancy"
+      ]
+    },
+    "stem cell transplantation": {
+      "canonical": "Stem Cell Transplantation",
+      "aliases": [
+        "hematopoietic stem cell transplantation",
+        "hematopoietic cell transplantation",
+        "bone marrow transplantation",
+        "hsct",
+        "allogeneic stem cell transplantation",
+        "graft versus host disease",
+        "graft vs host disease",
+        "gvhd"
+      ]
+    },
+    "solid organ transplantation": {
+      "canonical": "Solid Organ Transplantation",
+      "aliases": [
+        "organ transplantation",
+        "kidney transplantation",
+        "renal transplantation",
+        "liver transplantation",
+        "lung transplantation",
+        "heart transplantation",
+        "transplantation",
+        "transplant recipients"
+      ]
+    },
+    "critical illness": {
+      "canonical": "Critical Illness",
+      "aliases": [
+        "critically ill",
+        "intensive care unit",
+        "icu",
+        "critical care",
+        "sepsis",
+        "septic shock",
+        "mechanical ventilation"
+      ]
+    },
+    "cystic fibrosis": {
+      "canonical": "Cystic Fibrosis",
+      "aliases": [
+        "cf",
+        "bronchiectasis"
+      ]
+    },
+    "asthma": {
+      "canonical": "Asthma",
+      "aliases": [
+        "severe asthma",
+        "chronic obstructive pulmonary disease",
+        "copd"
+      ]
+    },
+    "solid tumor": {
+      "canonical": "Solid Tumor",
+      "aliases": [
+        "cancer",
+        "neoplasms",
+        "advanced solid tumors",
+        "solid tumors",
+        "carcinoma",
+        "advanced cancer",
+        "metastatic cancer"
+      ]
+    },
+    "chronic granulomatous disease": {
+      "canonical": "Chronic Granulomatous Disease",
+      "aliases": [
+        "cgd",
+        "primary immunodeficiency"
+      ]
+    },
+    "diabetes": {
+      "canonical": "Diabetes",
+      "aliases": [
+        "diabetes mellitus",
+        "type 2 diabetes",
+        "type 1 diabetes"
+      ]
+    },
+    "preterm infant": {
+      "canonical": "Preterm Infant",
+      "aliases": [
+        "prematurity",
+        "premature infant",
+        "very low birth weight infant",
+        "extremely low birth weight infant",
+        "neonate",
+        "neonates"
+      ]
+    }
+  },
+  "study_labels": {
+    "_note": "Values that describe the STUDY rather than any disease or population. They are real entries in the conditions field -- 'Pharmacokinetics' appears 33 times and 'Pharmacokinetics of Isavuconazole' 20 more -- and treating them as indications would invent markets that do not exist.",
+    "patterns": [
+      "pharmacokinetics",
+      "pharmacodynamics",
+      "bioequivalence",
+      "bioavailability",
+      "drug interaction",
+      "drug-drug interaction",
+      "drug safety",
+      "safety",
+      "tolerability",
+      "healthy aging",
+      "adherence",
+      "quality of life",
+      "biomarkers",
+      "diagnosis",
+      "diagnostic",
+      "screening",
+      "prophylaxis",
+      "infection",
+      "infections",
+      "inflammation",
+      "drug metabolism",
+      "cyp3a4",
+      "therapeutic drug monitoring",
+      "drug interactions",
+      "healthy",
+      "fever",
+      "drug hypersensitivity"
+    ]
+  },
+  "off_topic": {
+    "_note": "Verifiably not fungal and not a host population for antifungal therapy. Enumerated rather than left in 'unmapped' so the unmapped count stays a maintenance signal instead of a permanent pile. Each of these is in the corpus for a traceable reason the wide net accepted: ketoconazole is an anti-androgen at high dose (prostate cancer), amphotericin B treats visceral leishmaniasis, and 1990s HIV trials bundled PCP prophylaxis with toxoplasmosis and cryptosporidiosis prophylaxis.",
+    "patterns": [
+      "prostate cancer",
+      "prostatic neoplasms",
+      "hormone-refractory prostate cancer",
+      "cushing syndrome",
+      "cushing's syndrome",
+      "hyperandrogenism",
+      "polycystic ovary syndrome",
+      "precocious puberty",
+      "visceral leishmaniasis",
+      "leishmaniasis",
+      "cutaneous leishmaniasis",
+      "chagas disease",
+      "cryptosporidiosis",
+      "toxoplasmosis",
+      "cerebral toxoplasmosis",
+      "malaria",
+      "tuberculosis",
+      "bacterial vaginosis",
+      "trichomoniasis",
+      "bacteremia",
+      "bacterial pneumonia",
+      "pneumonia",
+      "covid-19",
+      "sars-cov-2",
+      "influenza",
+      "hepatitis c",
+      "hepatitis b",
+      "cytomegalovirus infection",
+      "herpes zoster",
+      "oral lichen planus",
+      "oral mucositis",
+      "mucositis",
+      "periodontitis",
+      "dental caries",
+      "gingivitis",
+      "psoriasis",
+      "atopic dermatitis",
+      "acne",
+      "alopecia",
+      "hypercholesterolemia",
+      "hyperlipidemia",
+      "dyslipidemia",
+      "obesity",
+      "pain",
+      "postoperative pain",
+      "chronic pain",
+      "anesthesia",
+      "hypertension",
+      "asthma exacerbation",
+      "schizophrenia",
+      "depression",
+      "breast cancer",
+      "lung cancer",
+      "neuroblastoma",
+      "melanoma",
+      "thyroid cancer",
+      "wound healing",
+      "chronic wounds",
+      "burns",
+      "vaginal odor",
+      "contraception"
+    ]
+  }
+}

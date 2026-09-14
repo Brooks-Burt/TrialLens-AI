@@ -224,6 +224,21 @@ CREATE TABLE IF NOT EXISTS programs (
     sponsor      TEXT NOT NULL,      -- as CT.gov reports it
     sponsor_norm TEXT NOT NULL,      -- after sponsor-name normalization
 
+    -- leadSponsor.class, straight from the registry: INDUSTRY, NIH, FED,
+    -- OTHER_GOV, NETWORK, INDIV, OTHER. Populated on all 3,022 trials in
+    -- this corpus (INDUSTRY 1529, OTHER 1265, NIH 135).
+    --
+    -- This column is what makes '14 companies' computable. Without it,
+    -- (sponsor, asset) mints a program for every investigator-initiated
+    -- trial -- an academic running one oteseconazole study becomes an
+    -- 'oteseconazole program' -- and the corpus-wide count inflates to 994
+    -- programs across 48 assets. Separating industry-led from
+    -- investigator-initiated is therefore load-bearing for every headline
+    -- number, and doing it from a REGISTRY FIELD rather than by guessing
+    -- from sponsor-name patterns ('University', 'Hospital') means the split
+    -- is fact rather than inference.
+    sponsor_class TEXT,
+
     drug_class   TEXT,               -- from the alias dictionary, nullable
 
     -- How this program's identity was established. Every grouping must be
@@ -426,3 +441,67 @@ CREATE TABLE IF NOT EXISTS trial_embeddings (
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_key   ON trial_embeddings(embedding_key);
 CREATE INDEX IF NOT EXISTS idx_embeddings_model ON trial_embeddings(model_id);
+
+
+-- ---------------------------------------------------------------------
+-- trial_indications: conditions collapsed onto a controlled vocabulary
+-- ---------------------------------------------------------------------
+-- Written by normalize/indications.py.
+--
+-- The corpus holds 2,196 distinct condition strings across 5,184 mentions,
+-- and four of them describe one market: "Vulvovaginal Candidiasis" (32),
+-- "Candidiasis, Vulvovaginal" (19), "Recurrent Vulvovaginal Candidiasis"
+-- (13), "Vaginal Candidiasis" (10). Counting distinct programs per RAW
+-- string would split every indication across its spellings and report a
+-- landscape as less crowded than it is -- the dangerous direction, because
+-- "this space has room" is a conclusion someone acts on.
+--
+-- `kind` separates four outcomes that a naive indication/other split would
+-- conflate. The most frequent conditions here are Healthy (177), HIV
+-- Infections (144), AML (44) and Prostate Cancer (33): none is a fungal
+-- indication and none is equivalent to the others.
+--
+--   indication   a fungal disease; the landscape's y-axis
+--   population   the SETTING a trial ran in (healthy volunteers, AML, ICU)
+--   study_label  describes the study, not a disease -- "Pharmacokinetics"
+--                appears 33 times as a condition value
+--   off_topic    verifiably not fungal; ketoconazole as an anti-androgen in
+--                prostate cancer, amphotericin B in visceral leishmaniasis
+--
+-- Anything matching nothing is simply absent, and indications.py reports
+-- the unmapped count. Growth in that number means the vocabulary has
+-- drifted behind the corpus.
+--
+-- rollup_depth: 0 is the matched term, 1+ are its ancestors (candidemia ->
+-- invasive candidiasis -> candidiasis). Ancestors are materialised so a
+-- crowding query can group at any level without walking a parent chain in
+-- SQL. Filter on rollup_depth = 0 for exact attribution.
+--
+-- specificity 'umbrella' marks registry shorthand -- "Fungal Infection",
+-- "Mycoses", "Invasive Fungal Infection" -- which covers many markets at
+-- once. Too frequent to discard (180+ mentions combined) but not
+-- attributable to a specific market without inventing the attribution, so
+-- analyze/ excludes it from crowding denominators.
+CREATE TABLE IF NOT EXISTS trial_indications (
+    nct_id       TEXT NOT NULL,
+    kind         TEXT NOT NULL
+        CHECK (kind IN ('indication','population','study_label','off_topic')),
+    key          TEXT NOT NULL,
+    canonical    TEXT NOT NULL,
+    specificity  TEXT,
+    rollup_depth INTEGER NOT NULL DEFAULT 0,
+
+    -- The raw registry string, and which alias matched it. Both kept so any
+    -- grouping is traceable to the exact input and rule that produced it --
+    -- the same audit requirement as program_trials.matched_on.
+    matched_from TEXT NOT NULL,
+    matched_on   TEXT,
+
+    assessed_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (nct_id, kind, key),
+    FOREIGN KEY (nct_id) REFERENCES trials(nct_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trial_ind_key  ON trial_indications(kind, key);
+CREATE INDEX IF NOT EXISTS idx_trial_ind_spec ON trial_indications(kind, specificity);

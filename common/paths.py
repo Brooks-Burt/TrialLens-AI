@@ -57,6 +57,7 @@ QUERY_CONFIG_PATH = INGEST_DIR / "query_config.json"
 NORMALIZE_DIR = REPO_ROOT / "normalize"
 SCHEMA_PATH = NORMALIZE_DIR / "schema.sql"
 ASSET_ALIASES_PATH = NORMALIZE_DIR / "asset_aliases.json"
+INDICATION_VOCAB_PATH = NORMALIZE_DIR / "indications.json"
 
 RETRIEVE_DIR = REPO_ROOT / "retrieve"
 RANKING_CONFIG_PATH = RETRIEVE_DIR / "ranking_config.json"
