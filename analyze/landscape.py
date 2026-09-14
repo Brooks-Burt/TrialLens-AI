@@ -580,81 +580,16 @@ class LandscapeAnalyzer:
             ),
         }
 
-    # -- corpus-wide ------------------------------------------------------
-
-    def white_space(self, min_programs: int = 1) -> dict:
-        """
-        Indication x mechanism-class cells with few or no INDUSTRY programs,
-        computed over the WHOLE corpus rather than the retrieved set.
-
-        Scope is deliberate and is the one metric here that ignores the
-        question. "Nobody is developing here" is only meaningful against
-        everything known -- against 30 retrieved trials it would report
-        white space that is merely absence from one query's results, which
-        is the most misleading possible version of this number.
-        """
-        rows = self.conn.execute(
-            """SELECT ti.canonical, COALESCE(p.drug_class, '(class unknown)'),
-                      p.program_id
-                 FROM trial_indications ti
-                 JOIN program_trials pt ON pt.nct_id = ti.nct_id
-                 JOIN programs p ON p.program_id = pt.program_id
-                WHERE ti.kind = 'indication'
-                  AND ti.specificity = 'specific'
-                  AND ti.rollup_depth = 0
-                  AND p.sponsor_class = 'INDUSTRY'"""
-        ).fetchall()
-
-        occupied: dict[tuple[str, str], set[str]] = defaultdict(set)
-        for indication, drug_class, program_id in rows:
-            occupied[(indication, drug_class)].add(program_id)
-
-        indications = sorted({i for i, _ in occupied})
-        classes = sorted({c for _, c in occupied if c != "(class unknown)"})
-
-        empty, thin = [], []
-        for indication in indications:
-            for drug_class in classes:
-                count = len(occupied.get((indication, drug_class), ()))
-                cell = {"indication": indication, "mechanism_class": drug_class,
-                        "programs": count}
-                if count == 0:
-                    empty.append(cell)
-                elif count <= min_programs:
-                    thin.append(cell)
-
-        return {
-            "basis": "corpus-wide, INDUSTRY programs only",
-            "read_thin_not_empty": (
-                "THIN cells are the usable signal; empty cells mostly are not. "
-                f"This grid has {len(indications)} x {len(classes)} = "
-                f"{len(indications) * len(classes)} cells and {len(empty)} are "
-                "empty, because most indication x mechanism pairs are "
-                "biologically implausible rather than unexploited -- there is no "
-                "topical agent for candidemia and never will be. A cell with "
-                "exactly one program is different in kind: someone has already "
-                "demonstrated the combination is viable, and nobody has "
-                "followed. That is a shortlist worth reading."
-            ),
-            "grid": metric(
-                {"indications": len(indications), "mechanism_classes": len(classes),
-                 "cells": len(indications) * len(classes)},
-                "specific indications x mechanism classes observed anywhere in "
-                "the corpus",
-            ),
-            "unoccupied_cells": metric(
-                len(empty),
-                "indication x mechanism-class combinations with zero INDUSTRY "
-                "programs corpus-wide. An empty cell is not automatically an "
-                "opportunity -- many are biologically implausible, e.g. a "
-                "topical agent for candidemia -- so this is a shortlist to "
-                "read, not a ranking to act on",
-            ),
-            "thin_cells": metric(
-                len(thin),
-                f"combinations with 1..{min_programs} INDUSTRY programs -- "
-                f"occupied but not contested",
-            ),
-            "empty": empty,
-            "thin": sorted(thin, key=lambda c: c["programs"]),
-        }
+    # White space analysis was here and was removed.
+    #
+    # It crossed every indication with every mechanism class and looked for
+    # empty cells, on the theory that gaps matter as much as crowds. The
+    # grid came out 24 x 23, and 460 of 552 cells were empty -- because most
+    # indication x mechanism pairs are biologically implausible rather than
+    # unexploited. There is no topical agent for candidemia and never will
+    # be. Making the number mean anything took a paragraph of caveats.
+    #
+    # A metric that needs a paragraph before it can be read is not a metric
+    # this project should carry. Everything else in this file has a
+    # one-sentence formula, and that consistency is worth more than one
+    # extra card.
