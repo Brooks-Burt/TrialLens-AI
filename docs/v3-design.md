@@ -289,6 +289,25 @@ Top to bottom:
 Keep the page visually simple. Polish means clarity and consistent spacing, not
 extra features.
 
+**Decided during step 5** (`app.py`):
+- The answer lives in session state: Streamlit reruns the script on every
+  click, and a toggle must not re-run the search or re-bill the model.
+- Table columns a reader scans first (drug, role, phase, status, completion)
+  sit next to the linked NCT ID. Trials that don't list the searched drug
+  are hidden behind a toggle that says how many there are.
+- Declines show the example rephrasings as buttons that run them.
+- All model-written text is Markdown-escaped before display. HTML is inert
+  in Streamlit, but an echoed "[link](url)" would otherwise render as a link.
+- Run with `--server.address 127.0.0.1`: by default Streamlit listens on all
+  network interfaces.
+- **Retrieval fix found while testing the page:** sorting fetches by latest
+  completion date pulled 24 observational registries/biobanks (dates up to
+  2100-12) into "recruiting obesity" (1,475 matches). Switched to registry
+  relevance: 20 of 25 interventional, 9 with a drug or biologic, the same 25
+  on repeated runs. Open question: restrict to interventional studies
+  (`AREA[StudyType]INTERVENTIONAL`)? That gives 25 of 25 interventional and
+  11 with a drug, but changes M (1,475 to 1,134).
+
 ## 6. Token reduction (not a hard constraint)
 
 - Field-limited API requests.

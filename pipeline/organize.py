@@ -102,6 +102,7 @@ class Facts:
     total_matching: int | None   # M: unique trials matching the whole search (registry count)
     retrieved: int               # N: unique trials retrieved and kept
     core_unique: int             # unique trials that test (or list) one of the drugs
+    active_unique: int           # of those, how many are active (see ACTIVE)
     groups: list[GroupFacts]
     summary_trials: list[tuple[Trial, str | None]]  # (trial, group term), capped and ranked
     rows: list[dict]             # one per unique trial, for the UI table
@@ -167,6 +168,7 @@ def organize(groups: list[TrialGroup], total_matching: int | None,
         total_matching=total_matching,
         retrieved=len(rows),
         core_unique=len(core_ids),
+        active_unique=sum(t.status in ACTIVE for t in core_trials),
         groups=gfacts,
         summary_trials=picked,
         rows=list(rows.values()),
@@ -190,6 +192,8 @@ def render_facts(question: str, interpretation: str, f: Facts, exclude_terms: li
         f"INTERPRETATION: {interpretation}",
         f"TOTALS: {f.total_matching if f.total_matching is not None else 'unknown'} trials match the search in the registry; "
         f"{f.retrieved} were retrieved (at most 25 per drug); {f.core_unique} of those test or list one of the searched drugs.",
+        f"ACTIVE: {f.active_unique} of those {f.core_unique} are active (recruiting, not yet recruiting, "
+        "active but not recruiting, or enrolling by invitation).",
     ]
     searched = [g for g in f.groups if g.term]
     if searched:

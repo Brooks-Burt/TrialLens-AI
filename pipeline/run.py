@@ -42,6 +42,7 @@ class Answer:
     plan: Plan | None = None
     validation: Validation | None = None
     groups: list[TrialGroup] = field(default_factory=list)
+    total_query: dict = field(default_factory=dict)  # the registry query behind M
     facts: Facts | None = None
     facts_text: str = ""                    # exactly what the writer saw, for the trace panel
     lead: str = ""
@@ -92,7 +93,7 @@ def _answer(question: str) -> Answer:
     a.groups = retrieve(v.conditions, list(v.interventions), plan.phases, plan.statuses,
                         plan.exclude_terms, aliases=v.interventions)
     all_names = [n for term, aliases in v.interventions.items() for n in [term, *aliases]]
-    total = count_matching(v.conditions, all_names, plan.phases, plan.statuses)
+    total, a.total_query = count_matching(v.conditions, all_names, plan.phases, plan.statuses)
     a.seconds["retrieve"] = round(time.monotonic() - t, 1)
     if all(g.error for g in a.groups):
         a.status = STOPPED

@@ -55,6 +55,7 @@ def check() -> list[tuple[bool, str]]:
     # (N3 is comparator-only; N4 and Z1 don't list their drug).
     r.append((f.retrieved == 7 and len(f.rows) == 7, f"N1 appears in two groups but counts once: retrieved={f.retrieved}"))
     r.append((f.core_unique == 4, f"unique core trials (N1 core in A even though comparator in B): {f.core_unique}"))
+    r.append((f.active_unique == 2, f"active unique core trials (N1 recruiting, N5 not yet recruiting): {f.active_unique}"))
     n1 = next(row for row in f.rows if row["trial"].nct_id == "N1")
     r.append(([term for term, _, _ in n1["groups"]] == ["drugA", "drugB"], "a trial's row lists every group it came from"))
 

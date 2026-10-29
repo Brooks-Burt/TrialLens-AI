@@ -79,10 +79,14 @@ _DRUG_TYPES = {"DRUG", "BIOLOGICAL", "COMBINATION_PRODUCT", "GENETIC"}
 EXCLUDING_ROLES = {TESTED, ROLE_UNCLEAR, OTHER_NAME}
 
 # The cap decides WHICH trials we see when more than 25 match, so the order
-# must be explicit (CT.gov's default order is documented as unsorted). Most
-# recent primary completion first favours current work, matching the stage-4
-# ranking rule. Only date/numeric fields are sortable, so phase can't be used.
-SORT = "PrimaryCompletionDate:desc,LastUpdatePostDate:desc"
+# must be explicit (CT.gov's default order is documented as unsorted).
+# Registry relevance, not latest completion date: on "recruiting obesity"
+# (1,475 matches, 2026-10-29) date-first returned 24 observational
+# registries/biobanks with placeholder dates up to 2100-12 and 1 trial with a
+# drug; relevance returned 20 interventional studies, 9 with a drug or
+# biologic. Same 25 on repeated runs. Stage 4 re-ranks what comes back by
+# its documented rule.
+SORT = "@relevance"
 
 PER_GROUP_CAP = 25
 
@@ -330,23 +334,24 @@ def count_matching(
     phases: list[str] | None = None,
     statuses: list[str] | None = None,
     client: CTGovClient | None = None,
-) -> int | None:
+) -> tuple[int | None, dict]:
     """
     The registry's exact number of UNIQUE trials matching the whole search
     (all conditions, any of the drug names, same filters) -- the "M" in
     "based on N trials retrieved of M matching". Adding up per-drug totals
-    would double-count trials that test two of the drugs. None if the call
-    fails: an unknown total is shown as unknown, never as 0.
+    would double-count trials that test two of the drugs. Returns
+    (total, query params). total is None if the call fails: an unknown
+    total is shown as unknown, never as 0.
     """
     client = client or CTGovClient()
     names = [n for n in map(clean_term, drug_names) if n]
     params = _build_params([c for c in map(clean_term, conditions) if c], names, phases or [], statuses or [])
     try:
         _, total = client.search(params, ["NCTId"], 1)
-        return total
+        return total, params
     except CTGovError as exc:
         print(f"  count_matching failed: {exc}")
-        return None
+        return None, params
 
 
 def _show(label: str, groups: list[TrialGroup]) -> None:
