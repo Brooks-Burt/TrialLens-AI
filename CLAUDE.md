@@ -31,7 +31,8 @@ answer plus a trial table. No downloaded corpus, no database.
   retrieved of M matching".
 
 ## Parked for the next update (do NOT build yet)
-Citation check, number check, "other readings" links, multiple answer types.
+Citation check, number check, "other readings" links, multiple answer types,
+AI relevance label (label only, never a filter).
 
 ## Build discipline
 - Follow the build order in the design doc. Stop and show me results after

@@ -150,7 +150,24 @@ client's count-only lookup against the live registry.
   enrollment, primary completion date, why stopped, has-results.
 - Apply phase and status filters through API parameters where supported,
   otherwise in Python.
-- Apply `exclude_terms` in Python against title and intervention names. Exact
+- **Drug roles (decided after step 1).** CT.gov's intervention search matches
+  a term anywhere in a trial's intervention record, so a hit does not mean the
+  trial tests that drug. Python labels each trial's role for the drug from
+  registry fields only (arm types, which interventions go to which arm,
+  alternate names, MeSH terms): `tested`, `both_arms` (background therapy),
+  `comparator_only`, `role_unclear`, `other_name` (code name only, arm
+  unknown), `not_in_drug_list`. Sponsors often label the only drug arm of a
+  placebo-controlled trial "active comparator"; with no experimental arm, the
+  active-comparator arms count as the study arms. Rule and cases:
+  `pipeline/retrieve.py:drug_role`, `tests/test_drug_roles.py`.
+- Apply `exclude_terms` by role, not by text match. A trial is dropped when
+  the named drug is `tested`, `role_unclear` or `other_name` (strict reading:
+  if it might be a trial of the named drug, drop it, and list it with the
+  reason). Trials where the named drug is only a comparator or background are
+  kept and labeled. Text matching (the original rule) dropped 7 of 8
+  competitor trials in the step-1 antifungal test, because fluconazole is the
+  usual comparator. Known consequence: a head-to-head trial where both drugs
+  are experimental is dropped. Exact
   per-drug totals come from the API count; if exclusion removes fetched
   trials, report counts from the fetched set and say so in the trace panel.
 - Per-drug fetch cap (suggested 25 trials), deterministic.
@@ -309,6 +326,11 @@ Do not build now. Recorded so the update has a head start.
 5. **"Other readings" links:** under the answer, alternative interpretations with
    registry counts, each re-running the question.
 6. **Multiple answer types** (count, list, explain-stops) as a closed menu.
+6a. **AI relevance label.** Registry roles answer "is the drug being tested
+   here?" but not "is this trial really about the condition asked?" (e.g. an
+   obesity search returning a cancer cardiotoxicity trial that lists obesity).
+   A model may add a per-trial relevance label, shown as "model's judgment".
+   Label only: it never filters trials or changes any count.
 7. Known limit to state: verification covers facts, not judgment, and cannot
    see vague quantities ("most," "about half").
 
