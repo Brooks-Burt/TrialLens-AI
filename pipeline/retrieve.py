@@ -29,6 +29,7 @@ FIELDS = [
     "NCTId",
     "BriefTitle",
     "LeadSponsorName",
+    "LeadSponsorClass",  # INDUSTRY, NIH, OTHER (universities, hospitals...), ...: lets Python count sponsor types
     "Phase",
     "OverallStatus",
     "Condition",
@@ -36,6 +37,7 @@ FIELDS = [
     "InterventionType",
     "EnrollmentCount",
     "PrimaryCompletionDate",
+    "PrimaryCompletionDateType",  # ACTUAL or ESTIMATED -- so no date is ever presented as a result it isn't
     "WhyStopped",
     "HasResults",
     # For drug roles (see drug_role):
@@ -104,6 +106,7 @@ class Trial:
     interventions: list[str]
     enrollment: int | None
     primary_completion: str | None
+    primary_completion_type: str | None  # ACTUAL / ESTIMATED, as the registry records it
     why_stopped: str | None
     has_results: bool
     arms: list[Intervention] = field(default_factory=list)
@@ -111,6 +114,7 @@ class Trial:
     mesh_terms: list[str] = field(default_factory=list)
     role: str | None = None      # role of this group's drug term; None for condition-only
     notes: list[str] = field(default_factory=list)  # e.g. "fluconazole: comparator_only"
+    sponsor_class: str = ""      # registry's lead sponsor class (INDUSTRY, NIH, OTHER, ...)
 
     @property
     def url(self) -> str:
@@ -126,6 +130,7 @@ class TrialGroup:
     excluded: dict[str, str] = field(default_factory=dict)  # NCT ID -> why, e.g. "fluconazole: tested"
     query: dict = field(default_factory=dict)          # exact params sent, for the trace panel
     error: str | None = None     # set if the search failed; never silently empty
+    aliases: list[str] = field(default_factory=list)  # other names searched with `term`
 
 
 def _parse(study: dict) -> Trial:
@@ -157,10 +162,12 @@ def _parse(study: dict) -> Trial:
         interventions=[a.name for a in arms],
         enrollment=design.get("enrollmentInfo", {}).get("count"),
         primary_completion=status.get("primaryCompletionDateStruct", {}).get("date"),
+        primary_completion_type=status.get("primaryCompletionDateStruct", {}).get("type"),
         why_stopped=status.get("whyStopped"),
         has_results=bool(study.get("hasResults", False)),
         arms=arms,
         arm_types=arm_types,
+        sponsor_class=p.get("sponsorCollaboratorsModule", {}).get("leadSponsor", {}).get("class", ""),
         mesh_terms=[m.get("term", "") for m in meshes],
     )
 
@@ -292,7 +299,7 @@ def retrieve(
             studies, total = client.search(params, FIELDS, per_group_cap)
         except CTGovError as exc:
             print(f"  search failed for {term or 'condition-only'}: {exc}")
-            groups.append(TrialGroup(term, 0, [], 0, query=params, error=str(exc)))
+            groups.append(TrialGroup(term, 0, [], 0, query=params, error=str(exc), aliases=names[1:]))
             continue
         trials = [_parse(s) for s in studies]
         kept, excluded = [], {}
@@ -313,8 +320,33 @@ def retrieve(
                 continue
             t.notes = notes
             kept.append(t)
-        groups.append(TrialGroup(term, total, kept, len(trials), excluded, params))
+        groups.append(TrialGroup(term, total, kept, len(trials), excluded, params, aliases=names[1:]))
     return groups
+
+
+def count_matching(
+    conditions: list[str],
+    drug_names: list[str],
+    phases: list[str] | None = None,
+    statuses: list[str] | None = None,
+    client: CTGovClient | None = None,
+) -> int | None:
+    """
+    The registry's exact number of UNIQUE trials matching the whole search
+    (all conditions, any of the drug names, same filters) -- the "M" in
+    "based on N trials retrieved of M matching". Adding up per-drug totals
+    would double-count trials that test two of the drugs. None if the call
+    fails: an unknown total is shown as unknown, never as 0.
+    """
+    client = client or CTGovClient()
+    names = [n for n in map(clean_term, drug_names) if n]
+    params = _build_params([c for c in map(clean_term, conditions) if c], names, phases or [], statuses or [])
+    try:
+        _, total = client.search(params, ["NCTId"], 1)
+        return total
+    except CTGovError as exc:
+        print(f"  count_matching failed: {exc}")
+        return None
 
 
 def _show(label: str, groups: list[TrialGroup]) -> None:

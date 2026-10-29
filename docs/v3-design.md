@@ -245,6 +245,25 @@ Prompt rules:
 - Registry fields only. No inferred readout dates unless computed from a stated
   date and labeled as an estimate (data honesty rule from v1, kept).
 
+**Decided during step 4** (`pipeline/organize.py`, `summarize.py`, `run.py`):
+- Trials count by drug role. "Core" (tested, or listed with role unclear)
+  are counted and summarized. Comparator/background are counted separately.
+  "Not in drug list" are shown in the table only.
+- M = one extra registry count over all conditions + any drug name + the
+  same filters (unique trials; per-drug totals would double-count).
+- Python writes the "Based on N trials retrieved of M matching" sentence;
+  the model writes what follows. Unknown M is shown as unknown, never 0.
+- Python also supplies counts the writer would otherwise make: phase,
+  status, lead-sponsor type (registry `LeadSponsorClass`), drugs with trials.
+  Completion dates carry the registry's ACTUAL/ESTIMATED type.
+- Active = recruiting, active not recruiting, not yet recruiting, and
+  enrolling by invitation (added).
+- Writer gets at most 40 trials, round-robin across ranked groups.
+- Observed after tightening the prompt (3 real questions): all digits and
+  NCT IDs traceable to the facts, but occasional numbers in words ("Six"),
+  small outside-knowledge words ("newer-named"), and per-drug sponsor-type
+  claims guessed from names. These are what the parked checks address.
+
 Verification of this output is **parked** (section 9). Until then, the visible
 table next to the answer is the check, and Python supplies every number.
 

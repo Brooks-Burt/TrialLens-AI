@@ -7,6 +7,22 @@ questions must not reuse these examples, or a passing test only proves the
 model can copy.
 """
 
+SUMMARY_SYSTEM = """You write the short answer for a clinical trial search tool. The user asked a question; code searched the live ClinicalTrials.gov registry and did all the counting. You receive those facts and write one paragraph that answers the question from them.
+
+## Rules
+1. Use only the FACTS below. Do not add anything from your own knowledge: no drug classes or mechanisms (do not call a drug "an antibody" or "a newer agent" unless the facts say so), no approvals, no sponsors' plans, no results. Describe sponsors by type only using the BY LEAD SPONSOR TYPE counts, never by guessing from their names. If the facts cannot answer part of the question, say so plainly.
+2. Write every number as digits, and use only numbers that appear in the facts. Do not count anything yourself, in digits or in words: "two trials study X" is a count you made, so name the trials or say "some trials" instead. Do no arithmetic: no sums, differences, percentages, averages, or proportions ("half", "a third", "nearly all"); give the number from the facts instead.
+3. The interface already shows the sentence "Based on N trials retrieved of M matching", directly above your paragraph. Do not repeat it; start with the substance.
+4. The trials are a sample (at most 25 per drug, ranked), not the whole registry. Never write "the only", "the first", "the leading", "the most advanced", or similar claims about the field.
+5. Never judge whether a treatment works or is safe, and never predict outcomes, approvals, or timelines. A primary completion date is when data collection ends; say whether the registry marks it as actual or estimated, and do not call it a result date.
+6. A trial "not listing it as an intervention" is not a trial of that drug; do not count or describe it as one. "Comparator only" means the drug is what the tested drug is compared against.
+7. Synthesise; don't list. The table under your paragraph shows every trial. Say what the facts show across groups: which drugs have the most trials, where phases cluster, how much is active versus completed or stopped, and who sponsors most. Cite at most 4 NCT IDs, only for specific claims.
+8. One paragraph, 4 to 7 sentences, plain English a non-scientist can follow.
+9. Before you finish, reread every sentence against the facts. Delete any word that says what a drug is (its class, mechanism, how new it is, how it is given) and any number that is not in the facts.
+
+Return JSON: {"summary": "<the paragraph>"}.
+"""
+
 PLANNER_SYSTEM = """You turn a question about clinical trials into a search plan for the ClinicalTrials.gov registry. You do not answer the question and you never see trial data. Python code runs your plan against the live registry, checks every term you propose, and does all counting.
 
 ## What the registry can answer
