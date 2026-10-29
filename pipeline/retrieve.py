@@ -16,6 +16,7 @@ Run directly for the step-1 check (hard-coded filters, no AI):
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,7 +38,38 @@ FIELDS = [
     "PrimaryCompletionDate",
     "WhyStopped",
     "HasResults",
+    # For drug roles (see drug_role):
+    "InterventionOtherName",
+    "InterventionArmGroupLabel",
+    "ArmGroupLabel",
+    "ArmGroupType",
+    "InterventionMeshTerm",
 ]
+
+# --- drug roles ------------------------------------------------------------
+# CT.gov's search matches a drug term anywhere in a trial's intervention
+# record -- names, descriptions, registry synonyms. That is not the same as
+# "this trial tests the drug". Each trial records which arms are experimental
+# vs comparator, and which interventions go to which arm, so Python can label
+# the drug's role from registry data instead of asking a model.
+TESTED = "tested"                  # given in the study arms (see drug_role for what those are)
+BOTH_ARMS = "both_arms"            # background therapy: in study AND comparator arms, while another
+                                   # real drug is given only in the study arms
+COMPARATOR_ONLY = "comparator_only"
+ROLE_UNCLEAR = "role_unclear"      # in the drug list but arms missing / OTHER / labels don't resolve,
+                                   # or only in the title
+OTHER_NAME = "other_name"          # only the registry's standardised (MeSH) drug term matches, e.g. term
+                                   # "ibrexafungerp" vs a trial listing only "SCY-078"; arm unknown
+NOT_IN_DRUG_LIST = "not_in_drug_list"  # neither name nor MeSH term matches. For a group's own
+                                       # term, CT.gov matched it elsewhere (e.g. description text)
+
+_COMPARATOR_ARMS = {"ACTIVE_COMPARATOR", "PLACEBO_COMPARATOR", "SHAM_COMPARATOR"}
+_PLACEBO = re.compile(r"placebo|sham", re.IGNORECASE)
+
+# Competitor rule (same indication, different drug): drop a trial if the named
+# drug is, or may be, what the trial is testing. Unknown roles are dropped
+# too -- the strict reading -- and reported, never silently.
+EXCLUDING_ROLES = {TESTED, ROLE_UNCLEAR, OTHER_NAME}
 
 # The cap decides WHICH trials we see when more than 25 match, so the order
 # must be explicit (CT.gov's default order is documented as unsorted). Most
@@ -46,6 +78,13 @@ FIELDS = [
 SORT = "PrimaryCompletionDate:desc,LastUpdatePostDate:desc"
 
 PER_GROUP_CAP = 25
+
+
+@dataclass
+class Intervention:
+    name: str
+    other_names: list[str]
+    arm_labels: set[str]         # labels of the arms it is given in
 
 
 @dataclass
@@ -61,6 +100,11 @@ class Trial:
     primary_completion: str | None
     why_stopped: str | None
     has_results: bool
+    arms: list[Intervention] = field(default_factory=list)
+    arm_types: dict[str, str] = field(default_factory=dict)  # arm label -> EXPERIMENTAL, ACTIVE_COMPARATOR, ...
+    mesh_terms: list[str] = field(default_factory=list)
+    role: str | None = None      # role of this group's drug term; None for condition-only
+    notes: list[str] = field(default_factory=list)  # e.g. "fluconazole: comparator_only"
 
     @property
     def url(self) -> str:
@@ -73,7 +117,7 @@ class TrialGroup:
     total_matching: int          # registry's exact count for this query
     trials: list[Trial]          # fetched (<= cap), after exclusion
     fetched: int                 # fetched before exclusion
-    excluded: list[str] = field(default_factory=list)  # NCT IDs removed by exclude_terms
+    excluded: dict[str, str] = field(default_factory=dict)  # NCT ID -> why, e.g. "fluconazole: tested"
     query: dict = field(default_factory=dict)          # exact params sent, for the trace panel
     error: str | None = None     # set if the search failed; never silently empty
 
@@ -85,6 +129,17 @@ def _parse(study: dict) -> Trial:
     ident = p.get("identificationModule", {})
     status = p.get("statusModule", {})
     design = p.get("designModule", {})
+    ai = p.get("armsInterventionsModule", {})
+    arm_types = {a.get("label"): a.get("type") for a in ai.get("armGroups", []) if a.get("label") and a.get("type")}
+    arms = [
+        Intervention(
+            name=i.get("name", ""),
+            other_names=i.get("otherNames", []),
+            arm_labels=set(i.get("armGroupLabels", [])),
+        )
+        for i in ai.get("interventions", [])
+    ]
+    meshes = study.get("derivedSection", {}).get("interventionBrowseModule", {}).get("meshes", [])
     return Trial(
         nct_id=ident.get("nctId", ""),
         title=ident.get("briefTitle", ""),
@@ -92,12 +147,61 @@ def _parse(study: dict) -> Trial:
         phases=design.get("phases", []),
         status=status.get("overallStatus", ""),
         conditions=p.get("conditionsModule", {}).get("conditions", []),
-        interventions=[i.get("name", "") for i in p.get("armsInterventionsModule", {}).get("interventions", [])],
+        interventions=[a.name for a in arms],
         enrollment=design.get("enrollmentInfo", {}).get("count"),
         primary_completion=status.get("primaryCompletionDateStruct", {}).get("date"),
         why_stopped=status.get("whyStopped"),
         has_results=bool(study.get("hasResults", False)),
+        arms=arms,
+        arm_types=arm_types,
+        mesh_terms=[m.get("term", "") for m in meshes],
     )
+
+
+def _mentions(text: str, term: str) -> bool:
+    # Whole-word, case-insensitive: "rezafungin" matches "Rezafungin for
+    # Injection" but a short term can't match inside an unrelated word.
+    return re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text, re.IGNORECASE) is not None
+
+
+def drug_role(trial: Trial, term: str) -> str:
+    """The role `term` plays in `trial`, from registry fields only. See TESTED etc."""
+    matched = [a for a in trial.arms if any(_mentions(n, term) for n in [a.name, *a.other_names])]
+    if not matched:
+        if any(_mentions(m, term) for m in trial.mesh_terms):
+            return OTHER_NAME
+        # Drug list empty or vague ("GLP-1 receptor agonist") but the title
+        # names the drug (NCT07622992): we can't tell its role, so say so --
+        # which also keeps a trial OF an excluded drug from slipping through.
+        return ROLE_UNCLEAR if _mentions(trial.title, term) else NOT_IN_DRUG_LIST
+    arm_type = trial.arm_types
+    labels = set().union(*(a.arm_labels for a in matched)) & arm_type.keys()
+
+    # "Study arms" are the EXPERIMENTAL ones. But many placebo-controlled
+    # trials label their only drug arm ACTIVE_COMPARATOR (NCT07731256's arm
+    # description even says "the experimental group"), so with no
+    # EXPERIMENTAL arm at all, the active-comparator arms are the study arms.
+    study_types = {"EXPERIMENTAL"} if "EXPERIMENTAL" in arm_type.values() else {"ACTIVE_COMPARATOR"}
+    study_arms = {l for l, t in arm_type.items() if t in study_types}
+    in_study = labels & study_arms
+    in_comparator = {l for l in labels if arm_type[l] in _COMPARATOR_ARMS} - study_arms
+
+    if in_study and not in_comparator:
+        return TESTED
+    if in_comparator and not in_study:
+        return COMPARATOR_ONLY
+    if not in_study:
+        return ROLE_UNCLEAR  # no arm labels, or only OTHER / NO_INTERVENTION arms
+    # In study AND comparator arms. Background therapy if some other real drug
+    # is given only in study arms ("X + term vs placebo + term"). Otherwise
+    # the trial compares doses/durations/populations of the term itself
+    # (NCT07021937: semaglutide in every arm, adolescents vs adults).
+    other_test_drug = any(
+        a.arm_labels and a.arm_labels <= study_arms and not _PLACEBO.search(a.name)
+        for a in trial.arms
+        if not any(a is m for m in matched)
+    )
+    return BOTH_ARMS if other_test_drug else TESTED
 
 
 def _build_params(conditions: list[str], term: str | None, phases: list[str], statuses: list[str]) -> dict:
@@ -110,11 +214,6 @@ def _build_params(conditions: list[str], term: str | None, phases: list[str], st
         "filter.advanced": f"AREA[Phase]({' OR '.join(phases)})" if phases else None,
         "sort": SORT,
     }
-
-
-def _is_excluded(trial: Trial, exclude_terms: list[str]) -> bool:
-    haystack = " ".join([trial.title, *trial.interventions]).lower()
-    return any(t.lower() in haystack for t in exclude_terms)
 
 
 def retrieve(
@@ -130,10 +229,11 @@ def retrieve(
     # Blank terms would become "()" in the query, which CT.gov rejects.
     conditions = [c for c in map(clean_term, conditions) if c]
     drug_terms = [t for t in map(clean_term, drug_terms) if t]
+    exclude_terms = [t for t in map(clean_term, exclude_terms or []) if t]
     if not conditions and not drug_terms:
         raise ValueError("retrieve() needs at least one condition or drug term")
     client = client or CTGovClient()
-    phases, statuses, exclude_terms = phases or [], statuses or [], exclude_terms or []
+    phases, statuses = phases or [], statuses or []
 
     groups = []
     for term in drug_terms or [None]:
@@ -145,8 +245,17 @@ def retrieve(
             groups.append(TrialGroup(term, 0, [], 0, query=params, error=str(exc)))
             continue
         trials = [_parse(s) for s in studies]
-        kept = [t for t in trials if not _is_excluded(t, exclude_terms)]
-        excluded = [t.nct_id for t in trials if _is_excluded(t, exclude_terms)]
+        kept, excluded = [], {}
+        for t in trials:
+            t.role = drug_role(t, term) if term else None
+            ex_roles = {x: drug_role(t, x) for x in exclude_terms}
+            hits = [f"{x}: {r}" for x, r in ex_roles.items() if r in EXCLUDING_ROLES]
+            if hits:
+                excluded[t.nct_id] = "; ".join(hits)
+                continue
+            # Named drug present but not under test: keep, and say so.
+            t.notes = [f"{x}: {r}" for x, r in ex_roles.items() if r in (COMPARATOR_ONLY, BOTH_ARMS)]
+            kept.append(t)
         groups.append(TrialGroup(term, total, kept, len(trials), excluded, params))
     return groups
 
@@ -158,14 +267,18 @@ def _show(label: str, groups: list[TrialGroup]) -> None:
         if g.error:
             print(f"\n[{name}] ERROR: {g.error}")
             continue
+        roles = {}
+        for t in g.trials:
+            roles[t.role] = roles.get(t.role, 0) + 1
         print(f"\n[{name}] matching={g.total_matching} fetched={g.fetched} "
-              f"kept={len(g.trials)} excluded={g.excluded or 0}")
-        print(f"  query: { {k: v for k, v in g.query.items() if v} }")
-        for t in g.trials[:5]:
-            print(f"  {t.nct_id}  {'/'.join(t.phases) or '-':<14} {t.status:<22} "
-                  f"{t.primary_completion or '-':<10}  {t.sponsor[:30]:<30}  {t.title[:60]}")
-        if len(g.trials) > 5:
-            print(f"  ... {len(g.trials) - 5} more")
+              f"kept={len(g.trials)} roles={roles}")
+        for nct, why in g.excluded.items():
+            print(f"  EXCLUDED {nct}  ({why})")
+        for t in g.trials[:8]:
+            print(f"  {t.nct_id}  {t.role or '-':<16} {'/'.join(t.phases) or '-':<14} {t.status:<20} "
+                  f"{t.sponsor[:24]:<24}  {t.title[:50]}  {t.notes or ''}")
+        if len(g.trials) > 8:
+            print(f"  ... {len(g.trials) - 8} more")
 
 
 if __name__ == "__main__":
