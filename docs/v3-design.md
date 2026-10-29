@@ -387,6 +387,15 @@ Do not build now. Recorded so the update has a head start.
    Label only: it never filters trials or changes any count.
 7. Known limit to state: verification covers facts, not judgment, and cannot
    see vague quantities ("most," "about half").
+8. **Outside-knowledge background (considered after step 4, deferred).**
+   Descriptive context (drug class, mechanism, what a condition is) would
+   help readers. Options weighed: a separate section labeled "Background
+   (model knowledge, not from the registry)", which keeps the main answer
+   data-only and checkable (recommended); or mixed inline, which reads better
+   but blurs verified and unverified claims. Either way: no numbers, dates,
+   approval status, or efficacy claims, and update CLAUDE.md's "only provided
+   data" principle to match. Risk to keep in mind: the planner kept
+   calling cagrilintide a GLP-1 agonist (step 2).
 
 ## 10. Testing plan
 
