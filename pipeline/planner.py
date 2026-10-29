@@ -27,6 +27,12 @@ ERROR = "error"                  # the model call failed; message in `reason`
 
 MAX_QUESTION_CHARS = 1000
 
+# Condition terms and aliases this short are abbreviations, and CT.gov's
+# broad search matches them everywhere: adding "MS" to "multiple sclerosis"
+# pulled in 189 extra trials (glaucoma, acne, COVID...) on 2026-10-29.
+MIN_TERM_CHARS = 4
+MAX_CANDIDATES = 8  # one live search each; the prompt asks for at most 8
+
 # Enum values verified against the CT.gov OpenAPI spec (Phase, Status) on
 # 2026-10-29. Expanded-access statuses (AVAILABLE, ...) are left out on purpose.
 PHASES = ["EARLY_PHASE1", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "NA"]
@@ -46,10 +52,11 @@ PLAN_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "term": {"type": "string"},
+                    "aliases": _STR_LIST,
                     "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
                     "rationale": {"type": "string"},
                 },
-                "required": ["term", "confidence", "rationale"],
+                "required": ["term", "aliases", "confidence", "rationale"],
                 "additionalProperties": False,
             },
         },
@@ -70,6 +77,7 @@ class Candidate:
     term: str
     confidence: str   # recorded for the trace panel; never used to decide anything
     rationale: str
+    aliases: list[str] = field(default_factory=list)  # searched together with `term` as one group
 
 
 @dataclass
@@ -131,12 +139,31 @@ def _tidy(raw: dict, question: str) -> Plan:
             w.append(f"removed {terms[0]!r} from candidates: it is also an exclude term")
             continue
         seen.add(terms[0].lower())
-        candidates.append(Candidate(terms[0], c.get("confidence", "low"), str(c.get("rationale", ""))))
+        aliases = []
+        for a in _terms(c.get("aliases", []), w, "alias")[:3]:
+            if len(a) < MIN_TERM_CHARS:
+                w.append(f"removed alias {a!r} of {terms[0]!r}: too short, would match unrelated trials")
+            elif a.lower() in excluded:
+                w.append(f"removed alias {a!r} of {terms[0]!r}: it is also an exclude term")
+            elif a.lower() not in seen:
+                seen.add(a.lower())
+                aliases.append(a)
+        candidates.append(Candidate(terms[0], c.get("confidence", "low"), str(c.get("rationale", "")), aliases))
+
+    if len(candidates) > MAX_CANDIDATES:
+        w.append(f"kept the first {MAX_CANDIDATES} of {len(candidates)} interventions (the prompt's limit)")
+        candidates = candidates[:MAX_CANDIDATES]
+
+    conditions = _terms(raw.get("conditions", []), w, "condition")
+    if any(len(c) >= MIN_TERM_CHARS for c in conditions):
+        for c in [c for c in conditions if len(c) < MIN_TERM_CHARS]:
+            w.append(f"removed condition {c!r}: too short, would match unrelated trials")
+        conditions = [c for c in conditions if len(c) >= MIN_TERM_CHARS]
 
     plan = Plan(
         PLAN, question,
         interpretation=str(raw.get("interpretation", "") or "").strip(),
-        conditions=_terms(raw.get("conditions", []), w, "condition"),
+        conditions=conditions,
         candidates=candidates,
         phases=[p for p in raw.get("phases", []) or [] if p in PHASES],
         statuses=[s for s in raw.get("statuses", []) or [] if s in STATUSES],

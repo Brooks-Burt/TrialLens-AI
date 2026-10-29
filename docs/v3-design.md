@@ -120,6 +120,24 @@ Rules for the planner prompt:
   defaults; a missing key must never crash the planner (v1 bug 5).
 - A question with a condition but no named or inferable drugs is fine: the
   candidate list may be empty (see 4.3).
+- **Decided during step 2 (tested on 21 real questions):**
+  - Output uses structured outputs (a JSON schema the API enforces), still
+    read with `.get()`.
+  - One entry per drug, with `aliases` (code names, older names) searched
+    together as one query and one group. Brand names are not needed: the
+    registry maps them to generics (Keytruda = pembrolizumab, 2,996 trials
+    each). Some aliases matter: "lutetium Lu 177 vipivotide tetraxetan"
+    finds 14 trials "177Lu-PSMA-617" misses.
+  - Condition terms are names for the same condition only, spelled out.
+    Python drops terms and aliases under 4 characters when a longer
+    condition exists: "MS" added 189 unrelated trials.
+  - This version cannot filter by sponsor, location, or date. The planner
+    says so in the interpretation, or declines if that filter is the only
+    anchor. Sponsor search (`query.spons`) is a small possible addition.
+  - Known limit: class lists can include non-members. Haiku listed
+    cagrilintide (an amylin analogue) as a GLP-1 agonist in 3 of 3 runs while
+    its own rationale doubted it. The registry checks existence, not class;
+    the trace panel shows each rationale.
 
 ### 4.2 Stage 2: Validate
 

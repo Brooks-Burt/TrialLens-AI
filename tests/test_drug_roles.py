@@ -119,6 +119,8 @@ CASES = [
     (REZAFUNGIN, "rezafung", NOT_IN_DRUG_LIST),      # whole words only
     (HEAD_TO_HEAD, "semaglutide", TESTED),
     (CAGRISEMA, "semaglutide", TESTED),              # was both_arms before the placebo-name fix
+    (CODE_NAME_ONLY, ["ibrexafungerp", "SCY-078"], TESTED),  # an alias resolves the arm role
+    (REZAFUNGIN, ["fluconazole", "Diflucan"], COMPARATOR_ONLY),
 ]
 
 # (record, named drug, expected is_head_to_head)
@@ -137,7 +139,7 @@ def _check() -> list[str]:
     lines = []
     for record, term, expected in CASES:
         got = drug_role(_parse(record), term)
-        lines.append((got == expected, f"role  {term:<14} expected={expected:<17} got={got}"))
+        lines.append((got == expected, f"role  {str(term):<14} expected={expected:<17} got={got}"))
     for record, term, expected in H2H_CASES:
         got = is_head_to_head(_parse(record), term)
         lines.append((got == expected, f"h2h   {term:<14} expected={expected!s:<17} got={got}"))

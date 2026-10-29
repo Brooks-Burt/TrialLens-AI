@@ -174,7 +174,13 @@ def _mentions(text: str, term: str) -> bool:
 def _matching(trial: Trial, term: str) -> list[Intervention]:
     # "Placebo semaglutide" is not semaglutide (NCT07253285 lists one per arm).
     return [a for a in trial.arms
-            if not _PLACEBO.search(a.name) and any(_mentions(n, term) for n in [a.name, *a.other_names])]
+            if not _PLACEBO.search(a.name) and any(_mentions(n, t) for n in [a.name, *a.other_names] for t in _names(term))]
+
+
+def _names(term: str | list[str]) -> list[str]:
+    # A drug may be searched under several names (generic + code names);
+    # any of them counts as the drug.
+    return [term] if isinstance(term, str) else list(term)
 
 
 def _study_arms(trial: Trial) -> set[str]:
@@ -186,7 +192,7 @@ def _study_arms(trial: Trial) -> set[str]:
     return {l for l, t in trial.arm_types.items() if t in study_types}
 
 
-def is_head_to_head(trial: Trial, term: str) -> bool:
+def is_head_to_head(trial: Trial, term: str | list[str]) -> bool:
     """`term` is in a study arm AND some study arm gives a different real drug without `term`."""
     matched = _matching(trial, term)
     term_arms = set().union(*(a.arm_labels for a in matched)) if matched else set()
@@ -200,16 +206,16 @@ def is_head_to_head(trial: Trial, term: str) -> bool:
     )
 
 
-def drug_role(trial: Trial, term: str) -> str:
-    """The role `term` plays in `trial`, from registry fields only. See TESTED etc."""
+def drug_role(trial: Trial, term: str | list[str]) -> str:
+    """The role the drug (one name, or a list of its names) plays in `trial`, from registry fields only."""
     matched = _matching(trial, term)
     if not matched:
-        if any(_mentions(m, term) for m in trial.mesh_terms):
+        if any(_mentions(m, t) for m in trial.mesh_terms for t in _names(term)):
             return OTHER_NAME
         # Drug list empty or vague ("GLP-1 receptor agonist") but the title
         # names the drug (NCT07622992): we can't tell its role, so say so --
         # which also keeps a trial OF an excluded drug from slipping through.
-        return ROLE_UNCLEAR if _mentions(trial.title, term) else NOT_IN_DRUG_LIST
+        return ROLE_UNCLEAR if any(_mentions(trial.title, t) for t in _names(term)) else NOT_IN_DRUG_LIST
     arm_type = trial.arm_types
     labels = set().union(*(a.arm_labels for a in matched)) & arm_type.keys()
     study_arms = _study_arms(trial)
@@ -234,12 +240,18 @@ def drug_role(trial: Trial, term: str) -> str:
     return BOTH_ARMS if other_test_drug else TESTED
 
 
-def _build_params(conditions: list[str], term: str | None, phases: list[str], statuses: list[str]) -> dict:
+def _or(terms: list[str]) -> str | None:
+    # Parenthesised OR keeps multi-word terms intact:
+    # "(invasive candidiasis) OR (candidemia)".
+    if len(terms) == 1:
+        return terms[0]
+    return " OR ".join(f"({t})" for t in terms) or None
+
+
+def _build_params(conditions: list[str], names: list[str], phases: list[str], statuses: list[str]) -> dict:
     return {
-        # Parenthesised OR keeps multi-word conditions intact:
-        # "(invasive candidiasis) OR (candidemia)".
-        "query.cond": " OR ".join(f"({c})" for c in conditions),
-        "query.intr": term,
+        "query.cond": _or(conditions),
+        "query.intr": _or(names),
         "filter.overallStatus": "|".join(statuses),
         "filter.advanced": f"AREA[Phase]({' OR '.join(phases)})" if phases else None,
         "sort": SORT,
@@ -254,12 +266,19 @@ def retrieve(
     exclude_terms: list[str] | None = None,
     per_group_cap: int = PER_GROUP_CAP,
     client: CTGovClient | None = None,
+    aliases: dict[str, list[str]] | None = None,
 ) -> list[TrialGroup]:
-    """One group per drug term, or a single condition-only group if none."""
+    """
+    One group per drug term, or a single condition-only group if none.
+    `aliases` maps a drug term to its other names; a drug and its aliases
+    are one search ("(a) OR (b)") and one group, so the same drug never
+    shows up as two competitors.
+    """
     # Blank terms would become "()" in the query, which CT.gov rejects.
     conditions = [c for c in map(clean_term, conditions) if c]
     drug_terms = [t for t in map(clean_term, drug_terms) if t]
     exclude_terms = [t for t in map(clean_term, exclude_terms or []) if t]
+    aliases = {clean_term(k): [a for a in map(clean_term, v) if a] for k, v in (aliases or {}).items()}
     if not conditions and not drug_terms:
         raise ValueError("retrieve() needs at least one condition or drug term")
     client = client or CTGovClient()
@@ -267,7 +286,8 @@ def retrieve(
 
     groups = []
     for term in drug_terms or [None]:
-        params = _build_params(conditions, term, phases, statuses)
+        names = [term, *aliases.get(term, [])] if term else []
+        params = _build_params(conditions, names, phases, statuses)
         try:
             studies, total = client.search(params, FIELDS, per_group_cap)
         except CTGovError as exc:
@@ -277,7 +297,7 @@ def retrieve(
         trials = [_parse(s) for s in studies]
         kept, excluded = [], {}
         for t in trials:
-            t.role = drug_role(t, term) if term else None
+            t.role = drug_role(t, names) if term else None
             hits, notes = [], []
             for x in exclude_terms:
                 r = drug_role(t, x)

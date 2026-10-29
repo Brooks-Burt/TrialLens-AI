@@ -44,6 +44,23 @@ def check() -> list[tuple[bool, str]]:
     r.append((any("allopurinol" in w.lower() for w in p.warnings), "removing an excluded candidate is reported"))
     r.append((p.phases == ["PHASE3"] and p.statuses == ["RECRUITING"], "invalid phase/status values dropped"))
 
+    p = _tidy({"result": "plan", "interpretation": "x", "conditions": ["c"], "exclude_terms": ["drugx"],
+               "candidate_interventions": [
+                   {"term": "alpha", "aliases": ["ALP-1", "alpha", "DrugX", "ALP-1"], "confidence": "high", "rationale": ""},
+                   {"term": "ALP-1", "aliases": [], "confidence": "low", "rationale": "same drug again"}]}, "q")
+    r.append(([(c.term, c.aliases) for c in p.candidates] == [("alpha", ["ALP-1"])],
+              f"aliases: repeats, the term itself, and excluded names removed; an alias can't reappear as "
+              f"its own candidate: {[(c.term, c.aliases) for c in p.candidates]}"))
+
+    p = _tidy({"result": "plan", "interpretation": "x", "conditions": ["multiple sclerosis", "MS"],
+               "candidate_interventions": [{"term": "drugA", "aliases": ["DA", "DA-123"], "confidence": "high",
+                                            "rationale": ""}]}, "q")
+    r.append((p.conditions == ["multiple sclerosis"] and p.candidates[0].aliases == ["DA-123"] and len(p.warnings) == 2,
+              f"short abbreviations dropped from conditions and aliases, with warnings: {p.conditions}, "
+              f"{p.candidates[0].aliases}"))
+    p = _tidy({"result": "plan", "interpretation": "x", "conditions": ["RSV"], "candidate_interventions": []}, "q")
+    r.append((p.conditions == ["RSV"], "a short condition is kept when it is the only one (nothing better to search)"))
+
     p = _tidy({}, "q")
     r.append((p.result == TOO_VAGUE and p.warnings, "empty JSON -> too_vague with a warning, no crash"))
 
