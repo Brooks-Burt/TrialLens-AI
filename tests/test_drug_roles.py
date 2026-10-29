@@ -21,19 +21,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pipeline.retrieve import (  # noqa: E402
     BOTH_ARMS, COMPARATOR_ONLY, NOT_IN_DRUG_LIST, OTHER_NAME, ROLE_UNCLEAR, TESTED,
-    _parse, drug_role,
+    _parse, drug_role, is_head_to_head,
 )
 
 
 def study(arms: dict[str, str], drugs: list[tuple], mesh: list[str] = (), title: str = "") -> dict:
-    """arms: label -> type. drugs: (name, [arm labels]) or (name, [arm labels], [other names])."""
+    """arms: label -> type. drugs: (name, [arm labels], [other names]?, intervention type?)."""
     return {
         "protocolSection": {
             "identificationModule": {"nctId": "NCT00000000", "briefTitle": title},
             "armsInterventionsModule": {
                 "armGroups": [{"label": l, "type": t} for l, t in arms.items()],
                 "interventions": [
-                    {"name": d[0], "armGroupLabels": d[1], **({"otherNames": d[2]} if len(d) > 2 else {})}
+                    {"name": d[0], "armGroupLabels": d[1], "otherNames": d[2] if len(d) > 2 else [],
+                     "type": d[3] if len(d) > 3 else "DRUG"}
                     for d in drugs
                 ],
             },
@@ -80,6 +81,25 @@ DESCRIPTION_ONLY = study(
 NO_ARMS = study({}, [("Fluconazole", [])])
 # NCT07622992: empty drug list, drug named only in the title.
 TITLE_ONLY = study({}, [], title="Preoperative Optimization With Tirzepatide, Ketogenic Diet...")
+# NCT07900074: tirzepatide vs semaglutide, both arms EXPERIMENTAL.
+HEAD_TO_HEAD = study(
+    {"Semaglutide": "EXPERIMENTAL", "Tirzepatide": "EXPERIMENTAL"},
+    [("Tirzepatide", ["Tirzepatide"]), ("Semaglutide", ["Semaglutide"])],
+)
+# NCT07253285: CagriSema vs semaglutide vs cagrilintide vs placebo, with a
+# matching "Placebo semaglutide" that must not count as semaglutide.
+CAGRISEMA = study(
+    {"CagriSema": "EXPERIMENTAL", "Semaglutide": "EXPERIMENTAL",
+     "Cagrilintide": "EXPERIMENTAL", "Placebo": "PLACEBO_COMPARATOR"},
+    [("Cagrilintide", ["CagriSema", "Cagrilintide"]), ("Semaglutide", ["CagriSema", "Semaglutide"]),
+     ("Placebo cagrilintide", ["CagriSema", "Cagrilintide", "Placebo"]),
+     ("Placebo semaglutide", ["CagriSema", "Placebo", "Semaglutide"])],
+)
+# Synthetic: drug vs a behavioural programme -- two study arms, but not a drug head-to-head.
+DRUG_VS_LIFESTYLE = study(
+    {"Drug": "EXPERIMENTAL", "Lifestyle": "EXPERIMENTAL"},
+    [("Semaglutide", ["Drug"]), ("Lifestyle coaching", ["Lifestyle"], [], "BEHAVIORAL")],
+)
 
 CASES = [
     (REZAFUNGIN, "rezafungin", TESTED),
@@ -97,21 +117,41 @@ CASES = [
     (TITLE_ONLY, "semaglutide", NOT_IN_DRUG_LIST),
     (REZAFUNGIN, "Rezafungin", TESTED),              # case-insensitive
     (REZAFUNGIN, "rezafung", NOT_IN_DRUG_LIST),      # whole words only
+    (HEAD_TO_HEAD, "semaglutide", TESTED),
+    (CAGRISEMA, "semaglutide", TESTED),              # was both_arms before the placebo-name fix
+]
+
+# (record, named drug, expected is_head_to_head)
+H2H_CASES = [
+    (HEAD_TO_HEAD, "semaglutide", True),
+    (HEAD_TO_HEAD, "tirzepatide", True),
+    (CAGRISEMA, "semaglutide", True),                # cagrilintide-only arm vs semaglutide arm
+    (REZAFUNGIN, "rezafungin", False),               # other drugs only in comparator arm: a rezafungin trial
+    (MISLABELLED, "semaglutide", False),             # vs placebo
+    (POPULATION_COMPARISON, "semaglutide", False),   # same drug in every arm
+    (DRUG_VS_LIFESTYLE, "semaglutide", False),       # other arm is not a drug
 ]
 
 
-def test_drug_roles():
-    failures = []
+def _check() -> list[str]:
+    lines = []
     for record, term, expected in CASES:
         got = drug_role(_parse(record), term)
-        if got != expected:
-            failures.append(f"{term!r}: expected {expected}, got {got}")
+        lines.append((got == expected, f"role  {term:<14} expected={expected:<17} got={got}"))
+    for record, term, expected in H2H_CASES:
+        got = is_head_to_head(_parse(record), term)
+        lines.append((got == expected, f"h2h   {term:<14} expected={expected!s:<17} got={got}"))
+    return lines
+
+
+def test_drug_roles():
+    failures = [line for ok, line in _check() if not ok]
     assert not failures, "\n".join(failures)
 
 
 if __name__ == "__main__":
-    for record, term, expected in CASES:
-        got = drug_role(_parse(record), term)
-        print(f"{'ok  ' if got == expected else 'FAIL'}  {term:<14} expected={expected:<17} got={got}")
+    lines = _check()
+    for ok, line in lines:
+        print(f"{'ok  ' if ok else 'FAIL'}  {line}")
     test_drug_roles()
-    print(f"\nall {len(CASES)} cases pass")
+    print(f"\nall {len(lines)} cases pass")

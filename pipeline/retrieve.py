@@ -65,10 +65,15 @@ NOT_IN_DRUG_LIST = "not_in_drug_list"  # neither name nor MeSH term matches. For
 
 _COMPARATOR_ARMS = {"ACTIVE_COMPARATOR", "PLACEBO_COMPARATOR", "SHAM_COMPARATOR"}
 _PLACEBO = re.compile(r"placebo|sham", re.IGNORECASE)
+# Intervention types that count as "another drug" for head-to-head detection
+# (exercise, surgery or diet in the other arm is not a head-to-head).
+_DRUG_TYPES = {"DRUG", "BIOLOGICAL", "COMBINATION_PRODUCT", "GENETIC"}
 
 # Competitor rule (same indication, different drug): drop a trial if the named
 # drug is, or may be, what the trial is testing. Unknown roles are dropped
-# too -- the strict reading -- and reported, never silently.
+# too -- the strict reading -- and reported, never silently. One exception:
+# head-to-head trials (named drug in one study arm, a different drug in
+# another) are kept and labeled, since they test a competitor directly.
 EXCLUDING_ROLES = {TESTED, ROLE_UNCLEAR, OTHER_NAME}
 
 # The cap decides WHICH trials we see when more than 25 match, so the order
@@ -85,6 +90,7 @@ class Intervention:
     name: str
     other_names: list[str]
     arm_labels: set[str]         # labels of the arms it is given in
+    type: str = ""               # DRUG, BIOLOGICAL, BEHAVIORAL, PROCEDURE, ...
 
 
 @dataclass
@@ -136,6 +142,7 @@ def _parse(study: dict) -> Trial:
             name=i.get("name", ""),
             other_names=i.get("otherNames", []),
             arm_labels=set(i.get("armGroupLabels", [])),
+            type=i.get("type", ""),
         )
         for i in ai.get("interventions", [])
     ]
@@ -164,9 +171,38 @@ def _mentions(text: str, term: str) -> bool:
     return re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text, re.IGNORECASE) is not None
 
 
+def _matching(trial: Trial, term: str) -> list[Intervention]:
+    # "Placebo semaglutide" is not semaglutide (NCT07253285 lists one per arm).
+    return [a for a in trial.arms
+            if not _PLACEBO.search(a.name) and any(_mentions(n, term) for n in [a.name, *a.other_names])]
+
+
+def _study_arms(trial: Trial) -> set[str]:
+    # "Study arms" are the EXPERIMENTAL ones. But many placebo-controlled
+    # trials label their only drug arm ACTIVE_COMPARATOR (NCT07731256's arm
+    # description even says "the experimental group"), so with no
+    # EXPERIMENTAL arm at all, the active-comparator arms are the study arms.
+    study_types = {"EXPERIMENTAL"} if "EXPERIMENTAL" in trial.arm_types.values() else {"ACTIVE_COMPARATOR"}
+    return {l for l, t in trial.arm_types.items() if t in study_types}
+
+
+def is_head_to_head(trial: Trial, term: str) -> bool:
+    """`term` is in a study arm AND some study arm gives a different real drug without `term`."""
+    matched = _matching(trial, term)
+    term_arms = set().union(*(a.arm_labels for a in matched)) if matched else set()
+    study_arms = _study_arms(trial)
+    if not term_arms & study_arms:
+        return False
+    return any(
+        a.type in _DRUG_TYPES and not _PLACEBO.search(a.name) and (a.arm_labels & study_arms) - term_arms
+        for a in trial.arms
+        if not any(a is m for m in matched)
+    )
+
+
 def drug_role(trial: Trial, term: str) -> str:
     """The role `term` plays in `trial`, from registry fields only. See TESTED etc."""
-    matched = [a for a in trial.arms if any(_mentions(n, term) for n in [a.name, *a.other_names])]
+    matched = _matching(trial, term)
     if not matched:
         if any(_mentions(m, term) for m in trial.mesh_terms):
             return OTHER_NAME
@@ -176,13 +212,7 @@ def drug_role(trial: Trial, term: str) -> str:
         return ROLE_UNCLEAR if _mentions(trial.title, term) else NOT_IN_DRUG_LIST
     arm_type = trial.arm_types
     labels = set().union(*(a.arm_labels for a in matched)) & arm_type.keys()
-
-    # "Study arms" are the EXPERIMENTAL ones. But many placebo-controlled
-    # trials label their only drug arm ACTIVE_COMPARATOR (NCT07731256's arm
-    # description even says "the experimental group"), so with no
-    # EXPERIMENTAL arm at all, the active-comparator arms are the study arms.
-    study_types = {"EXPERIMENTAL"} if "EXPERIMENTAL" in arm_type.values() else {"ACTIVE_COMPARATOR"}
-    study_arms = {l for l, t in arm_type.items() if t in study_types}
+    study_arms = _study_arms(trial)
     in_study = labels & study_arms
     in_comparator = {l for l in labels if arm_type[l] in _COMPARATOR_ARMS} - study_arms
 
@@ -248,13 +278,20 @@ def retrieve(
         kept, excluded = [], {}
         for t in trials:
             t.role = drug_role(t, term) if term else None
-            ex_roles = {x: drug_role(t, x) for x in exclude_terms}
-            hits = [f"{x}: {r}" for x, r in ex_roles.items() if r in EXCLUDING_ROLES]
+            hits, notes = [], []
+            for x in exclude_terms:
+                r = drug_role(t, x)
+                if r == TESTED and is_head_to_head(t, x):
+                    notes.append(f"head-to-head vs {x}")
+                elif r in EXCLUDING_ROLES:
+                    hits.append(f"{x}: {r}")
+                elif r in (COMPARATOR_ONLY, BOTH_ARMS):
+                    # Named drug present but not under test: keep, and say so.
+                    notes.append(f"{x}: {r}")
             if hits:
                 excluded[t.nct_id] = "; ".join(hits)
                 continue
-            # Named drug present but not under test: keep, and say so.
-            t.notes = [f"{x}: {r}" for x, r in ex_roles.items() if r in (COMPARATOR_ONLY, BOTH_ARMS)]
+            t.notes = notes
             kept.append(t)
         groups.append(TrialGroup(term, total, kept, len(trials), excluded, params))
     return groups
