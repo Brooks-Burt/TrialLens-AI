@@ -166,8 +166,8 @@ client's count-only lookup against the live registry.
   reason). Trials where the named drug is only a comparator or background are
   kept and labeled. Text matching (the original rule) dropped 7 of 8
   competitor trials in the step-1 antifungal test, because fluconazole is the
-  usual comparator. Known consequence: a head-to-head trial where both drugs
-  are experimental is dropped. Exact
+  usual comparator. Head-to-head trials (named drug in one study arm, a
+  different drug in another) are kept and labeled "head-to-head vs X". Exact
   per-drug totals come from the API count; if exclusion removes fetched
   trials, report counts from the fetched set and say so in the trace panel.
 - Per-drug fetch cap (suggested 25 trials), deterministic.
