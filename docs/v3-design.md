@@ -156,6 +156,23 @@ client's count-only lookup against the live registry.
 - If a validation call itself fails (network error), treat as "could not
   verify," not as zero hits, and surface that. Do not silently drop a real
   drug because of a timeout (this differs from v1, which treated errors as 0).
+- **Decided during step 3** (`pipeline/validate.py`, `tests/test_validate.py`):
+  - Unverified terms are kept and searched anyway, with a note to the user.
+    If every call fails, stop with "registry could not be reached".
+  - A drug survives if its name or any alias exists. Aliases are dropped
+    individually. Code names matter: "deuruxolitinib" has 4 trials,
+    "CTP-543" has 21.
+  - Exclude terms are checked for the report only ("the registry has no
+    trials listing zorblaxumab") and always passed through.
+  - Partial drops are told to the user ("Not found in the registry:
+    fakeglutide"), not only shown in the trace panel.
+  - An invalid term (e.g. over 200 characters) is dropped, not "unverified".
+  - Checks run 8 in parallel (60 calls took 2.9 s, no throttling seen).
+  - Tested live: invented conditions built from real words ("purple liver
+    syndrome", "acute elbow diabetes") and drug look-alikes
+    ("semaglutidex") all return 0. Known lenient case: "vitamin Q12"
+    returned 16 (matched "vitamin" plus "q12h" dosing text). The drug-role
+    labels catch it downstream: no trial lists such a drug.
 
 ### 4.3 Stage 3: Retrieve
 
