@@ -66,7 +66,8 @@ def check() -> list[tuple[bool, str]]:
     capped = organize([g1, g2], 47, cap=2)
     r.append((len(capped.summary_trials) == 2, "cap respected"))
 
-    r.append((lead_sentence(f) == "Based on 7 trials retrieved of 47 matching in ClinicalTrials.gov.", lead_sentence(f)))
+    r.append((lead_sentence(f) == "Based on 7 trials retrieved of 47 matching interventional studies in ClinicalTrials.gov.",
+              lead_sentence(f)))
     r.append(("unknown number" in lead_sentence(organize([g1], None)), "unknown registry total is said, not shown as 0"))
 
     text = render_facts("q", "i", f, ["x"])

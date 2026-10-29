@@ -304,9 +304,16 @@ extra features.
   completion date pulled 24 observational registries/biobanks (dates up to
   2100-12) into "recruiting obesity" (1,475 matches). Switched to registry
   relevance: 20 of 25 interventional, 9 with a drug or biologic, the same 25
-  on repeated runs. Open question: restrict to interventional studies
-  (`AREA[StudyType]INTERVENTIONAL`)? That gives 25 of 25 interventional and
-  11 with a drug, but changes M (1,475 to 1,134).
+  on repeated runs.
+- **Scope decided after step 5: interventional studies only**
+  (`AREA[StudyType]INTERVENTIONAL`, combined with any phase filter). It
+  applies to every search and to M; recruiting obesity goes 1,475 to 1,134.
+  It is stated on the page, in the lead sentence ("matching interventional
+  studies"), and in the writer's facts. The planner declines questions
+  specifically about observational studies or registries. Term validation
+  still counts all study types, because it checks existence; the trace panel
+  says so. Many interventional trials list no phase (behavioral, device,
+  diet, surgery); they are shown as "no phase listed".
 
 ## 6. Token reduction (not a hard constraint)
 

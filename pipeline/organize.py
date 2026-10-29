@@ -182,7 +182,7 @@ def organize(groups: list[TrialGroup], total_matching: int | None,
 def lead_sentence(f: Facts) -> str:
     """Written by Python, not the model, so it can't be dropped or misstated."""
     m = f"{f.total_matching:,}" if f.total_matching is not None else "an unknown number of"
-    return f"Based on {f.retrieved:,} trials retrieved of {m} matching in ClinicalTrials.gov."
+    return f"Based on {f.retrieved:,} trials retrieved of {m} matching interventional studies in ClinicalTrials.gov."
 
 
 def render_facts(question: str, interpretation: str, f: Facts, exclude_terms: list[str]) -> str:
@@ -190,6 +190,7 @@ def render_facts(question: str, interpretation: str, f: Facts, exclude_terms: li
     lines = [
         f"QUESTION: {question}",
         f"INTERPRETATION: {interpretation}",
+        f"SCOPE: interventional studies only (trials that test an intervention); observational studies are not searched.",
         f"TOTALS: {f.total_matching if f.total_matching is not None else 'unknown'} trials match the search in the registry; "
         f"{f.retrieved} were retrieved (at most 25 per drug); {f.core_unique} of those test or list one of the searched drugs.",
         f"ACTIVE: {f.active_unique} of those {f.core_unique} are active (recruiting, not yet recruiting, "

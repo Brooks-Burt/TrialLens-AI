@@ -80,7 +80,8 @@ st.session_state.setdefault("answer", None)
 
 st.title("TrialLens")
 st.caption("Ask a question about clinical trials. TrialLens searches the live ClinicalTrials.gov registry "
-           "and writes a short answer based only on the trials it found, shown beside the trials themselves.")
+           "and writes a short answer based only on the trials it found, shown beside the trials themselves. "
+           "It covers interventional studies (trials that test a treatment), not observational ones.")
 
 with st.form("ask", border=False):
     st.text_input("Your question", key="q_input", max_chars=MAX_QUESTION_CHARS,
@@ -157,8 +158,9 @@ def render_work(a: Answer) -> None:
                 "Model's claim (not verified)": (f"{claims[c.term].confidence}: {claims[c.term].rationale}"
                                                  if c.term in claims else ""),
             } for c in v.checks]), hide_index=True, width="stretch")
-            st.caption("The registry check proves a term exists. It does not prove the model's claims about a "
-                       "drug's class or mechanism.")
+            st.caption("The registry check proves a term exists (counted across all study types; the search "
+                       "itself covers interventional studies only). It does not prove the model's claims about "
+                       "a drug's class or mechanism.")
 
         if a.facts:
             f = a.facts

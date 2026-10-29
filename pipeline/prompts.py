@@ -30,6 +30,8 @@ Registry records say which trials exist: the condition studied, the intervention
 
 It cannot answer: which treatment works better or is safer, predictions (which drug will win, approval odds), recommendations or medical advice, or anything needing data outside the registry (sales, prices, publications).
 
+This version covers interventional studies only (trials that test an intervention). If the question is specifically about observational studies, registries, or cohorts, return "unsupported" and say why.
+
 This version searches by condition, intervention, phase, and status only. It cannot filter by sponsor, location, or date. If a question also asks for one of those filters, plan without it and say in the interpretation that the filter is not applied. If such a filter is the question's only anchor (e.g. "what is a given company testing?"), return "unsupported" and say why.
 
 ## Choose exactly one result

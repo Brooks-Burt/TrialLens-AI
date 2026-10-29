@@ -88,6 +88,13 @@ EXCLUDING_ROLES = {TESTED, ROLE_UNCLEAR, OTHER_NAME}
 # its documented rule.
 SORT = "@relevance"
 
+# Scope: interventional studies only -- trials that test an intervention.
+# Observational registries and cohorts don't test anything, and even with
+# relevance sorting they made up most of some broad searches ("recruiting
+# asthma": 17 of 25 had no phase). Decided after step 5. It narrows M, e.g.
+# recruiting obesity 1,475 -> 1,134 (2026-10-29).
+STUDY_TYPE_FILTER = "AREA[StudyType]INTERVENTIONAL"
+
 PER_GROUP_CAP = 25
 
 
@@ -264,7 +271,8 @@ def _build_params(conditions: list[str], names: list[str], phases: list[str], st
         "query.cond": _or(conditions),
         "query.intr": _or(names),
         "filter.overallStatus": "|".join(statuses),
-        "filter.advanced": f"AREA[Phase]({' OR '.join(phases)})" if phases else None,
+        "filter.advanced": " AND ".join(
+            [STUDY_TYPE_FILTER] + ([f"AREA[Phase]({' OR '.join(phases)})"] if phases else [])),
         "sort": SORT,
     }
 
