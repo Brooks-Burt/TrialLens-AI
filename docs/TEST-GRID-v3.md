@@ -196,18 +196,25 @@ How to check, per answered question:
 | X6 | plan | plan | 385 | 25 | condition only | 7.2 | [M query](https://clinicaltrials.gov/api/v2/studies?query.cond=psoriatic%20arthritis&filter.advanced=AREA%5BStudyType%5DINTERVENTIONAL&countTotal=true&pageSize=1&fields=NCTId) | | | |
 | X7 | stopped | stopped | - | - | - | - | - | n/a | n/a | n/a |
 
-### Candidate fixes (not made yet; for review)
+### Fixes after the run (2026-11-03)
 
-1. **Give the writer the interpretation, not the raw question** (X6). Text
-   typed by the user could then never address the writer directly. Small change.
-2. **Very broad searches** (O8, also C5/O5 at thousands of matches): when M is
-   very large and no drug was named, add a note to the message along the lines
-   of "this matches 98,075 trials; the 25 shown are a small sample, so try a
-   narrower question." Python decides when; nothing is declined.
-3. **Ambiguous readings** (O5): reinforce in the planner prompt that the
-   interpretation names which reading was chosen.
-4. **Competitor questions searched by condition only** (O1): record as known
-   behavior, not a bug. It is the more complete search, but it gives one flat
-   group instead of drug-by-drug results.
+1. **Done: the writer gets the interpretation, not the raw question** (X6).
+   `render_facts` no longer takes the question at all. Rerun of X6: the
+   answer no longer mentions the system prompt.
+2. **Done: note on very broad searches.** Condition-only searches with M of
+   1,000 or more get the message "This search matches N trials, so the 25 shown
+   are a small sample. A narrower question … gives a more complete answer."
+   Rerun: shown for O8 (98,075), O5 (4,381), C5 (2,689); not shown for C3, A1,
+   O9. Python rule (`organize.breadth_note`), 4 offline tests.
+3. **Done: ambiguous readings.** The planner prompt now requires naming the
+   chosen reading and the one set aside, with a worked "arthritis" example
+   (not a test question). Rerun of O5 ×3: 2 of 3 name it explicitly ("read
+   broadly rather than only hepatocellular carcinoma"); the third says "of any
+   type". Before the fix it was 0 of 3.
+4. **Known behavior: competitor questions sometimes searched by condition
+   only** (O1 in the grid). The planner occasionally lists no competitor drugs.
+   Measured after fix 3 on A1/C1/O1 ×4: drugs listed in 11 of 12 runs. When it
+   happens the search is still correct (named drug's trials removed), just one
+   flat group instead of drug-by-drug results. This variation predates fix 3.
 5. **Writer rule breaks** (5/20): leave for the parked number and citation
    checks; record them in the README limits.

@@ -179,17 +179,38 @@ def organize(groups: list[TrialGroup], total_matching: int | None,
     )
 
 
+# A condition-only search matching this many trials can only be sampled
+# thinly (25 of them). Grid examples: "cancer drugs" 98,075; "liver cancer"
+# 4,381; "AF trials" 2,689. Mesothelioma (525) stays below.
+BROAD_SEARCH_THRESHOLD = 1000
+
+
+def breadth_note(f: Facts) -> str:
+    """A nudge to narrow very broad searches. Python decides when; nothing is declined."""
+    condition_only = all(g.term is None for g in f.groups)
+    if not condition_only or f.total_matching is None or f.total_matching < BROAD_SEARCH_THRESHOLD:
+        return ""
+    return (f"This search matches {f.total_matching:,} trials, so the {f.retrieved} shown are a small sample. "
+            "A narrower question (a specific drug, phase, or recruitment status) gives a more complete answer.")
+
+
 def lead_sentence(f: Facts) -> str:
     """Written by Python, not the model, so it can't be dropped or misstated."""
     m = f"{f.total_matching:,}" if f.total_matching is not None else "an unknown number of"
     return f"Based on {f.retrieved:,} trials retrieved of {m} matching interventional studies in ClinicalTrials.gov."
 
 
-def render_facts(question: str, interpretation: str, f: Facts, exclude_terms: list[str]) -> str:
-    """Compact plain text (not JSON) for the writer: fewer tokens, easier to read."""
+def render_facts(interpretation: str, f: Facts, exclude_terms: list[str]) -> str:
+    """
+    Compact plain text (not JSON) for the writer: fewer tokens, easier to read.
+
+    The user's raw question is deliberately NOT included: the writer works
+    from the planner's interpretation, so text typed into the box can never
+    address the writer directly (grid X6: it replied "I can't share my
+    system prompt" to an injected request).
+    """
     lines = [
-        f"QUESTION: {question}",
-        f"INTERPRETATION: {interpretation}",
+        f"QUESTION (as interpreted): {interpretation}",
         f"SCOPE: interventional studies only (trials that test an intervention); observational studies are not searched.",
         f"TOTALS: {f.total_matching if f.total_matching is not None else 'unknown'} trials match the search in the registry; "
         f"{f.retrieved} were retrieved (at most 25 per drug); {f.core_unique} of those test or list one of the searched drugs.",

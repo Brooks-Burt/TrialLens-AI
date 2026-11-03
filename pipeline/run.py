@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline.organize import Facts, lead_sentence, organize, render_facts  # noqa: E402
+from pipeline.organize import Facts, breadth_note, lead_sentence, organize, render_facts  # noqa: E402
 from pipeline.planner import ERROR, PLAN, Plan, plan_question  # noqa: E402
 from pipeline.retrieve import TrialGroup, count_matching, retrieve  # noqa: E402
 from pipeline.summarize import Summary, summarize  # noqa: E402
@@ -110,7 +110,8 @@ def _answer(question: str) -> Answer:
         a.message = " ".join(filter(None, [a.message, f"No trials in the registry matched this search{hint}."]))
         return a
 
-    a.facts_text = render_facts(question, plan.interpretation, a.facts, plan.exclude_terms)
+    a.message = " ".join(filter(None, [a.message, breadth_note(a.facts)]))
+    a.facts_text = render_facts(plan.interpretation, a.facts, plan.exclude_terms)
     a.summary = summarize(a.facts_text)
     a.seconds["summarize"] = a.summary.seconds
     a.seconds["total"] = round(time.monotonic() - t0, 1)

@@ -7,7 +7,7 @@ questions must not reuse these examples, or a passing test only proves the
 model can copy.
 """
 
-SUMMARY_SYSTEM = """You write the short answer for a clinical trial search tool. The user asked a question; code searched the live ClinicalTrials.gov registry and did all the counting. You receive those facts and write one paragraph that answers the question from them.
+SUMMARY_SYSTEM = """You write the short answer for a clinical trial search tool. A user asked a question; a planner restated it (the QUESTION line below), and code searched the live ClinicalTrials.gov registry and did all the counting. You receive those facts and write one paragraph that answers the restated question from them.
 
 ## Rules
 1. Use only the FACTS below. Do not add anything from your own knowledge: no drug classes or mechanisms (do not call a drug "an antibody" or "a newer agent" unless the facts say so), no approvals, no sponsors' plans, no results. Describe sponsors by type only using the BY LEAD SPONSOR TYPE counts, never by guessing from their names. If the facts cannot answer part of the question, say so plainly.
@@ -40,7 +40,7 @@ This version searches by condition, intervention, phase, and status only. It can
 - "too_vague": the question has no anchor at all: no condition, intervention, or drug class. Give the reason and 2-3 example_rephrasings. If there is any anchor, make a plan instead.
 
 ## Filling a plan
-- interpretation: one plain sentence a non-scientist understands, saying what will be searched. Do not start it with "I read this as" (the interface adds that). Never phrase it as a question. Write it in English.
+- interpretation: one plain sentence a non-scientist understands, saying what will be searched. If the question has two reasonable readings, the sentence must name the reading you chose and, briefly, the one you set aside, so the user can tell what was assumed. Do not start it with "I read this as" (the interface adds that). Never phrase it as a question. Write it in English.
 - conditions: the condition as the registry would name it, plus other names for the same condition that registry records use (at most 3 terms). Only names for the same condition: never a broader, narrower, or merely related one (for "heart attack": "myocardial infarction", but not "coronary artery disease"). Spell out abbreviations instead of listing them: short abbreviations match unrelated trials. Empty only if the question names no condition.
 - candidate_interventions: one entry per intervention; each becomes one search and one group in the results.
   - term: the generic name, or the code name if there is no generic name yet.
@@ -68,6 +68,9 @@ Question: Which SGLT2 inhibitors are in late-stage trials for chronic kidney dis
 
 Question: small cell lung cancer trials that are enrolling
 {"result": "plan", "interpretation": "Currently recruiting trials for small cell lung cancer, any treatment.", "conditions": ["small cell lung cancer"], "candidate_interventions": [], "phases": [], "statuses": ["RECRUITING"], "exclude_terms": [], "reason": "", "example_rephrasings": []}
+
+Question: arthritis trials
+{"result": "plan", "interpretation": "Trials for arthritis of any type, read broadly rather than as only osteoarthritis or only rheumatoid arthritis, testing any treatment.", "conditions": ["arthritis"], "candidate_interventions": [], "phases": [], "statuses": [], "exclude_terms": [], "reason": "", "example_rephrasings": []}
 
 Question: Is lecanemab better than donanemab for Alzheimer's?
 {"result": "unsupported", "interpretation": "", "conditions": [], "candidate_interventions": [], "phases": [], "statuses": [], "exclude_terms": [], "reason": "The registry records how trials are designed, not which treatment works better.", "example_rephrasings": ["Which trials test lecanemab or donanemab in Alzheimer's disease?", "Are there trials comparing lecanemab and donanemab directly?"]}

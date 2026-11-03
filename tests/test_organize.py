@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline.organize import lead_sentence, organize, render_facts, trial_key  # noqa: E402
+from pipeline.organize import breadth_note, lead_sentence, organize, render_facts, trial_key  # noqa: E402
 from pipeline.retrieve import (  # noqa: E402
     COMPARATOR_ONLY, NOT_IN_DRUG_LIST, ROLE_UNCLEAR, TESTED, Trial, TrialGroup,
 )
@@ -70,9 +70,17 @@ def check() -> list[tuple[bool, str]]:
               lead_sentence(f)))
     r.append(("unknown number" in lead_sentence(organize([g1], None)), "unknown registry total is said, not shown as 0"))
 
-    text = render_facts("q", "i", f, ["x"])
+    cond_only = TrialGroup(None, 5000, [T("K1")], fetched=1)
+    r.append(("5,000 trials" in breadth_note(organize([cond_only], 5000)), "broad condition-only search gets the note"))
+    r.append((breadth_note(organize([cond_only], 999)) == "", "below the threshold: no note"))
+    r.append((breadth_note(organize([g1], 5000)) == "", "drug searches never get the note (their size comes from the drugs)"))
+    r.append((breadth_note(organize([cond_only], None)) == "", "unknown total: no note rather than a guess"))
+
+    text = render_facts("the planner's reading", f, ["x"])
     r.append(("(actual)" in text and "SEARCH FAILED" in text and "N4 |" not in text,
               "facts text: date type shown, failed group stated, off-topic trial absent"))
+    r.append((text.startswith("QUESTION (as interpreted): the planner's reading"),
+              "writer sees the interpretation; the raw question is not a parameter at all"))
     return r
 
 
