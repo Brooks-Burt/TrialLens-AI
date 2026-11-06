@@ -1,32 +1,19 @@
-# Data outputs — regenerable from ingest/normalize/enrich, not source
-data/raw/*.json
-data/*.db
-data/*.sqlite
-data/*.csv
-data/*.parquet
+# Secrets
+.env
 
-# keep folder structure in git
-!data/raw/.gitkeep
-
-# The ingest manifest is NOT regenerable data in the sense the rule above
-# means. It is the coverage record -- which config term matched which trial,
-# and how many hits each term returned -- and tests/test_coverage.py reads
-# it to assert no term in query_config.json is dead. Ignoring it would mean
-# a fresh clone cannot run the test that exists to stop v1 bug #6 from
-# recurring, and reproducing it costs a full multi-hour ingest. It is a few
-# hundred KB of JSON. Commit it.
-!data/raw/_manifest.json
-
-# The ONNX encoder cache (~130MB, downloaded on first use) is regenerable
-# and must never be committed.
-data/model_cache/
+# Data: v3 stores nothing, but test-grid results and any old local data
+# must never be committed
+data/
+*.db
+*.sqlite
+*.csv
+*.parquet
 
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
-.env
 
 # OS
 .DS_Store

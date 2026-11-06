@@ -1,20 +1,15 @@
 """
 common/ctgov_client.py
 
-Single shared client for talking to the CT.gov API v2. Used by:
-  - ingest/pull_trials.py    -- bulk, paged pulls of full study records
-  - enrich/query_planner.py  -- live, count-only validation of candidate terms
-  - pipeline/                -- v3 live search: field-limited search + count
+The only code that talks to the CT.gov API v2. Used by pipeline/validate.py
+(live, count-only checks of candidate terms) and pipeline/retrieve.py
+(field-limited live search).
 
 Parameter names verified against the official OpenAPI spec
 (https://clinicaltrials.gov/api/oas/v2, API version 2.0.5) on 2026-10-29.
 
-This lives outside both ingest/ and enrich/ on purpose. The project's rule
-is that domain modules don't import each other -- data/ is the only
-interface between them. A thin, stateless API wrapper with no domain
-logic (no query_config.json awareness, no JSON-to-disk writing, no
-Claude calls) isn't domain logic, so both modules importing *this* is
-not the same as ingest and enrich importing each other.
+A thin, stateless wrapper with no domain logic and no Claude calls, so
+retries, backoff and error handling are defined once.
 """
 
 from __future__ import annotations
@@ -101,11 +96,6 @@ class CTGovClient:
                     print(f"  request failed ({exc}); retrying in {wait}s...")
                     time.sleep(wait)
         raise CTGovError(f"Failed to fetch page after {self.retry_attempts} attempts: {last_error}")
-
-    def fetch_page(self, params: dict) -> dict:
-        """Full page of study records, for ingest's bulk pulls."""
-        page_params = {"format": "json", **params}
-        return self._get(page_params)
 
     def count(self, intervention: str | None = None, condition: str | None = None) -> int:
         """
