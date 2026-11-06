@@ -1,60 +1,50 @@
 # TrialLens
 
-Clinical trial intelligence over ClinicalTrials.gov. Detects which trials
-have actually changed, writes readable summaries of those, and answers
-plain-English questions about a therapeutic area without letting the model
-invent drugs that don't exist.
+Ask a plain-English question about clinical trials. TrialLens searches the
+live ClinicalTrials.gov registry and writes a short answer based only on the
+trials it found, shown next to those trials so every claim can be checked.
 
-Python, SQLite, Streamlit, Claude.
+**Claude translates and writes. Python decides, counts, and checks the
+registry.** The model is never the source of truth for what exists.
+
+Python, ClinicalTrials.gov API v2, Streamlit, Claude (Haiku 5.5 and Sonnet 5.5).
 
 ## Why I built this
 
 I've spent enough time in antifungals to know what tracking a therapeutic
 area actually looks like, and most of it is not analysis. It's opening
-ClinicalTrials.gov, paging through records you've already read, and trying to
-notice which of the handful that changed since last month changed in a way
-that matters. A site coordinator's phone number gets updated and the record
-looks new. Enrollment drops by 40% and it looks the same.
+ClinicalTrials.gov, typing the same searches, paging through records, and
+trying to work out which trials compete with which. Simple questions like
+"what else is being tested for invasive aspergillosis besides voriconazole?"
+take an afternoon, because the registry has no "competitor" field. Competing
+drugs share no words with each other, so keyword search can't find them.
 
-The obvious fix is to point a language model at the registry and ask it
-questions. I tried that first and stopped, because it fails in a specific and
-dangerous way: ask a model to name antifungals in development and it will
-eventually give you one that has never existed, described fluently and with
-total confidence. In a competitive intelligence context that isn't a cute
-demo failure. It's the thing that ends the meeting.
+The obvious fix is to point a language model at the registry and ask it. I
+tried that first and stopped, because it fails in a specific and dangerous
+way: ask a model to name antifungals in development and it will eventually
+give you one that has never existed, described fluently and with total
+confidence. In a competitive intelligence context that isn't a cute demo
+failure. It's the thing that ends the meeting.
 
-So TrialLens splits the work by what each side is actually good at.
-
-Python decides what's worth looking at. Which trials changed, which fields
-count as a real change, how results get ranked. All deterministic, all
-reproducible, all explainable to someone who asks why a trial showed up.
-
-Claude does the two jobs code genuinely can't. It turns a dense registry
-record into something a non-scientist can read, and it translates a question
-like "what's competing with rezafungin in refractory candidemia?" into search
-terms. That second one is the interesting case, because keyword search cannot
-do it at all. Competitors to a drug share no words with that drug. There is
-no "competitor" field in the registry. Answering it requires knowing which
-compounds share a mechanism, which is real domain knowledge and a reasonable
-thing to ask a model for.
-
-The catch is that it's also exactly where the model will make something up.
-Which is the next section.
+So TrialLens splits the work by what each side is actually good at. Claude
+does the two jobs code can't: turning a question into search terms (which
+needs real domain knowledge, like which drugs share a mechanism) and writing
+a readable paragraph. Python does everything that has to be right: checking
+that every term exists, searching, counting, ranking.
 
 ## The guardrail
 
 This is the part I'd point at first if you only read one thing.
 
-The query planner never searches for anything directly. It *proposes*
-candidate drug names, each with a confidence rating and a rationale. Every
-single proposed term then gets checked against the live CT.gov API with a
-count-only call. Zero hits means the term is dropped, logged, and reported
-back in a `dropped_terms` field that the dashboard displays on screen.
+The planner never searches for anything directly. It *proposes* drug and
+condition names, each with a confidence rating and a rationale. Every
+proposed term is then checked against the live registry with a count-only
+call. Zero hits means the term is dropped, and the page shows it as dropped.
 
 Claude proposes. The registry disposes.
 
-I tested this with a drug I made up. Asked whether `zorbafungin` was being
-studied in candidemia trials, the planner came back with:
+I first tested this in v1 with a drug I made up. Asked whether `zorbafungin`
+was being studied in candidemia, the planner came back with:
 
 ```json
 {
@@ -68,90 +58,91 @@ studied in candidemia trials, the planner came back with:
 
 High confidence, fluent rationale, completely fabricated. The check caught
 it anyway, because the check doesn't read confidence. It reads a hit count
-from the live registry:
-
-```
-WARNING: All candidate interventions failed validation for question:
-'is zorbafungin being studied in any candidemia trials?'
-```
-
-That's the design point, and it's why the validation exists as a separate
-step rather than a stern instruction in the prompt. A model's stated
-certainty tells you nothing about whether it's right, so nothing in this
-system is allowed to depend on it.
+from the live registry. In v3 the confidence is still recorded for the
+"Show your work" panel, and nothing is allowed to depend on it.
 
 Two smaller decisions inside that:
 
-The validation is not cached. Whether a drug exists in the registry is a
-fact about the registry right now, not about my local copy of it. Something
-registered yesterday should validate today.
-
-Dropped terms are shown, not swallowed. When the guardrail fires, you see
-what got rejected. A tool that silently discards a third of its own search
-plan is worse than one that tells you.
+- **"Zero hits" and "could not check" are different.** If the registry is
+  unreachable, the page says so. It never reports that as "0 trials".
+- **Dropped terms are shown, not swallowed.** A tool that silently discards
+  part of its own search plan is worse than one that tells you.
 
 ## How it works
 
-Five stages. Each one is a script you run on purpose, and each one is safe
-to re-run.
-
-```
-                     CT.gov API v2                Anthropic API
-                           |                            |
-              +------------+------------+               |
-              |                         |               |
-              v                         v               v
-       ingest/pull_trials.py    common/ctgov_client.py  enrich/client.py
-              |                  (shared HTTP wrapper)  (only Claude entry point)
-              v                         ^                    ^
-       data/raw/*.json                  |                    |
-              |                         |                    |
-              v                         |                    |
-     normalize/build_db.py              |                    |
-     normalize/materiality.py           |                    |
-              |                         |                    |
-              v                         |                    |
-       data/trials.db  <----------------+--------------------+
-              |            enrich reads `trials`, writes `summaries`
-              |
-              +-----------------+
-              v                 v
-       cli/ask.py         view/app.py  (Streamlit)
+```mermaid
+flowchart TD
+    Q[Plain-English question] --> P
+    P["1. Plan<br/>Claude Haiku<br/>search plan, or a polite decline"] --> V
+    V["2. Validate<br/>Python<br/>count-only registry check of every term;<br/>zero hits = dropped and shown"] --> R
+    R["3. Retrieve<br/>Python<br/>live search, one query per drug,<br/>interventional studies only"] --> O
+    O["4. Organize<br/>Python<br/>group by drug, label each trial's drug role,<br/>count, rank, cap"] --> S
+    S["5. Summarize<br/>Claude Sonnet<br/>one paragraph from the counted facts only"] --> UI
+    UI["Page: 'I read this as...', answer,<br/>linked trial table, 'Show your work' panel"]
+    CT[(ClinicalTrials.gov<br/>API v2, live)] -.-> V
+    CT -.-> R
 ```
 
-**1. Ingest.** Pulls full study records for one therapeutic area at a time,
-defined in `ingest/query_config.json`, and writes one raw JSON file per trial
-to `data/raw/`. No parsing, no database, no Claude. Re-running skips files
-that already exist unless you pass `--refresh`.
+**1. Plan.** Claude Haiku reads the question and returns one of three things:
+a search plan (conditions, candidate drugs with aliases and code names, phase
+and status filters, drugs to exclude), "unsupported" (efficacy rankings,
+predictions, medical advice), or "too vague" with example rephrasings. It
+never asks a clarifying question. It states "I read this as ..." and
+proceeds, because clarifying questions can loop on a poor question.
 
-**2. Normalize.** Parses the raw JSON into SQLite and computes a materiality
-hash for each trial. This is the change detection layer and it's one column,
-not a diff engine. A whitelist of fields that actually signal something
-(status, phase, enrollment, primary completion date, `whyStopped`, arms,
-primary outcomes) gets serialized in a canonical form and SHA-256'd. Contact
-names, facility addresses and record verification dates are deliberately
-excluded, because they change constantly and mean nothing.
+**2. Validate.** Every proposed term gets a count-only call to the registry,
+in parallel. Terms with zero hits are dropped. If the condition itself has
+zero hits, the search stops with a plain message instead of guessing.
 
-**3. Enrich.** Sends trials to Claude for a three-part summary: scientific
-summary, potential risks, business impact. It only sends trials that are new
-or whose materiality hash has moved since the last summary was written.
-Everything else is skipped at zero cost. A second run over an unchanged
-dataset reports `0 trial(s) need enrichment` and spends nothing.
+**3. Retrieve.** One live, field-limited search per drug, sorted by registry
+relevance, interventional studies only.
 
-**4. Ask.** Takes a question, runs the planner and its validation, searches
-the local database, ranks matches deterministically (phase, then status, then
-recency) and generates one competitive landscape paragraph across the whole
-result set. One Claude call per question, not per trial. Any matching trial
-that hasn't been summarized yet is listed separately rather than quietly left
-out of the paragraph.
+**4. Organize.** Python groups trials by drug and labels each trial's drug
+role from the registry's own arm data: *tests it*, *comparator only*, or
+*lists it (role unclear)*. For "what competes with X?", trials of X are
+removed, but head-to-head trials against X are kept and labeled. Python
+computes every count the writer will see, and writes the answer's first
+sentence itself: "Based on N trials retrieved of M matching ...".
 
-**5. View.** Streamlit dashboard. Ask is the landing page. Browse, trial
-detail and a change feed are behind it in the sidebar. Everything except Ask
-is read-only against the local database and free to reload as much as you
-like.
+**5. Summarize.** Claude Sonnet writes one paragraph from the computed facts
+only. It receives the planner's interpretation, never the raw question, so
+text typed into the box can't instruct it.
 
-Current dataset: 175 antifungal trials pulled, 47 with cached summaries. The
-gap is on purpose, see limitations.
+## What testing showed
+
+I wrote 30 new questions across three fields (5 antifungal, 9
+cardiometabolic, 9 oncology, plus 7 break-it cases). None had been used
+during development. I recorded the expected result for each **before**
+running anything, and three ambiguous questions ran three times each to
+measure how much the planner varies. Full results, with the exact registry
+link behind every count: [`docs/TEST-GRID-v3.md`](docs/TEST-GRID-v3.md).
+
+| Category | Result as predicted |
+|---|---|
+| Landscape questions, with and without a named drug | 6/6 |
+| Phase and status filters | 3/3 |
+| Drug classes (PCSK9, KRAS G12C) | 2/2, every listed drug a real class member |
+| Ambiguous questions, ×3 runs each | 9/9, same plan on every repeat |
+| Invented drugs and an invented condition | 3/3 caught and shown |
+| Unsupported and too-vague questions | 5/5 declined with a specific reason |
+| Empty result, special characters, broad search, why trials stopped | 4/4 |
+| Blank input, 1,539-character input, prompt injection, registry outage | 4/4 |
+| **All runs** | **36/36** |
+
+Median 7.3 seconds per answered question; about $0.45 for all 36 runs.
+
+In the 20 written answers, every trial ID appears in the data the writer was
+given, and every number does too except one (the writer added 2 + 2 itself).
+5 of 20 answers broke a writing rule: that one sum, one proportion ("about a
+third"), and three bits of outside knowledge ("older drugs"). These are
+recorded rather than hidden, and they're what the planned output checks are
+for (see Limitations).
+
+The run also found three real problems, now fixed: the writer could be
+addressed through the question box (it now never sees the question), very
+broad searches didn't say how small a sample 25 trials is (now flagged by a
+Python rule), and ambiguous questions didn't always say which reading was
+chosen (now required, 2 of 3 reruns name it, up from 0 of 3).
 
 ## Setup
 
@@ -167,135 +158,111 @@ echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
 
 ## Usage
 
-Cold start, in order:
-
 ```bash
-# 1. pull trials (free). --max-pages for a quick smoke test
-python ingest/pull_trials.py --area antifungals --max-pages 1
-python ingest/pull_trials.py --area antifungals
+# the page
+python -m streamlit run app.py --server.address 127.0.0.1
 
-# 2. build the database and compute hashes (free)
-python normalize/build_db.py --area antifungals --dry-run
-python normalize/build_db.py --area antifungals
-
-# 3. summarize (this is the part that costs money, so check first)
-python enrich/run_enrichment.py --dry-run
-python enrich/run_enrichment.py --limit 5
-
-# 4a. ask from the terminal
-python cli/ask.py "what's competing with rezafungin in refractory candidemia?"
-
-# 4b. or run the dashboard
-python -m streamlit run view/app.py
+# or one question from the terminal
+python pipeline/run.py "what is being tested for hypertrophic cardiomyopathy?"
 ```
 
-Use `python -m streamlit`, not bare `streamlit`. The bare command runs
-whichever streamlit is first on your PATH, which may be tied to a different
-interpreter than the one holding your dependencies. You'll get a working app
-that fails with `No module named 'anthropic'` the moment you ask a question.
-`docs/SETUP.md` has the longer explanation.
+`--server.address 127.0.0.1` keeps Streamlit on your own machine; by default
+it listens on every network interface. Use `python -m streamlit` rather than
+bare `streamlit` so the app runs with the interpreter that has the
+dependencies (`docs/SETUP.md` explains why).
 
-You can also run the planner on its own, which is the fastest way to see the
-guardrail work:
+Offline tests (no API key, no network, 76 cases):
 
 ```bash
-python enrich/query_planner.py "is zorbafungin being studied in candidemia?"
+python tests/test_planner_tidy.py
+python tests/test_validate.py
+python tests/test_drug_roles.py
+python tests/test_organize.py
 ```
+
+The full test grid calls Claude and the registry for real (under $1):
+`python tests/run_grid.py /path/outside/repo/results.json` (results are data,
+so keep them out of git).
 
 ## How it was made
 
-Notes on the build, mostly for anyone reading the code and wondering why it's
-shaped this way.
+**v3 replaced most of v1.** v1 downloaded a slice of the registry into
+SQLite, detected changed trials with a hash, and cached a summary per trial.
+It worked, but only for the antifungal terms I'd pulled, and the planner's
+idea of what was in scope kept drifting from what was actually in the
+database. v3 queries the live registry on demand: no download, no database,
+any therapeutic area, and that whole class of bug can't happen. v1 and v2 are
+preserved at the git tags `v1-corpus` and `v2-corpus`.
 
-**Four modules that don't import each other.** `ingest`, `normalize`,
-`enrich` and `view` communicate only through files in `data/`. Any one can be
-rewritten or run alone. The single exception is `common/`, a stateless HTTP
-wrapper with no domain knowledge, shared because the alternative was
-duplicating retry and backoff logic in two places.
+**Small, testable stages.** Each stage in `pipeline/` takes and returns plain
+data, so any stage can be tested alone. `pipeline/run.py` is the only module
+that imports them all, and it never raises: every exit is a status plus a
+plain-language message, so no stack trace reaches the page.
 
-**One Claude entry point.** Every API call goes through `enrich/client.py`,
-so retries, backoff and defensive output parsing are defined once. When
-Claude started wrapping its JSON in markdown fences despite being told not
-to, the fix went in one function instead of five call sites.
+**One place for each outside system.** `pipeline/llm.py` is the only file
+that touches the Anthropic SDK (model IDs live there too).
+`common/ctgov_client.py` is the only file that touches the registry.
 
-**One file touches SQLite.** `prompts.py`, `client.py`, `summarize.py` and
-`landscape.py` take dicts and return dicts. Only `run_enrichment.py` opens a
-database connection. Swapping SQLite for something else touches one file and
-zero prompts.
+**Decisions made by testing, not up front.** Sorting by latest completion
+date pulled 24 observational registries and biobanks into a "recruiting
+obesity" search, so retrieval sorts by registry relevance and searches
+interventional studies only. Drugs are searched with their code names,
+because many trials list only the code: "deuruxolitinib" has 4 trials, its
+code name "CTP-543" has 21. Abbreviations are dropped when a full name
+exists, because "MS" alone added 189 unrelated trials. Each decision is recorded in
+[`docs/v3-design.md`](docs/v3-design.md).
 
-**Things I cut mid-build.** Originally this was going to end in a Power BI
-dashboard. I dropped it for Streamlit, because a `.pbix` binary in git can't
-be reviewed or run by anyone reading the repo. I also cut a `snapshots` plus
-`changes` table pair down to the single materiality hash column, since full
-snapshot history is a feature of a monitoring product and this has no
-scheduled runs, so there's no history to accumulate. And I skipped the Batch
-API, which would halve enrichment cost but adds an async polling path to save
-a few dollars at this scale.
-
-**Bugs I found by running it, not reading it.** Six of them, and the
-uncomfortable thing is that most weren't crashes. The worst was a SELECT that
-never fetched `materiality_hash` from the database, so every summary got
-written with an empty-string hash, so every subsequent run compared `""`
-against a real hash, decided every trial had changed, and re-enriched the
-entire dataset. No error, no warning, no symptom except the bill. I only
-caught it by running enrichment twice and noticing the second run should have
-cost nothing and didn't.
-
-The others: a hardcoded relative DB path that silently created a second empty
-database when run from the wrong folder, bare imports that only worked when
-launched from the repo root, a `KeyError` on out-of-scope questions because
-the model omitted a field the code indexed into directly, a missing
-`load_dotenv()` that turned a missing API key into a raw `KeyError`, and a
-prompt whose stated scope was broader than the data I'd actually pulled.
-
-I also deliberately tried to break it. Interrupted an enrichment run with
-Ctrl-C mid-call (the in-flight trial was never written, completed ones
-weren't duplicated, resuming picked up where it left off). Fed a trial with
-enrollment, arms and outcomes all null into the summarizer to check it would
-name the gaps instead of inventing numbers. Asked an out-of-scope question
-about Alzheimer's. Asked about a drug that doesn't exist.
+**Bugs from v1 I designed out from the start.** The worst v1 bug was silent:
+a database query never fetched the change-detection hash, so every summary
+was saved with an empty hash, every later run thought every trial had
+changed, and re-summarized the whole dataset. No error, no warning, no
+symptom except the bill. I only caught it by running twice and noticing the
+second run should have cost nothing. The others were a relative path that
+silently created a second empty database, imports that only worked from the
+repo root, a crash when the model left out a JSON field, a missing API key
+surfacing as a raw `KeyError`, and a prompt promising more than the data
+held. v3 applies the fix for each from the first line: paths built from each
+file's own location, model JSON read with defaults, a readable missing-key
+message, and failures that are logged and shown rather than swallowed.
 
 ## Limitations
 
-Being explicit about these, since a few were found in testing rather than
-designed around.
+- **Registry data only.** No FDA filings, publications or press releases.
+  If ClinicalTrials.gov doesn't say it, TrialLens doesn't know it.
+- **Keyword search can miss trials** that name a drug or condition
+  differently from the terms searched.
+- **Drug-class membership is the model's claim.** The registry confirms a
+  drug exists, not that it belongs to the class asked about.
+- **A sample, not the whole registry.** Each drug group is capped at 25
+  trials. The answer always says "N retrieved of M matching", and very broad
+  searches get an extra note.
+- **The written answer isn't machine-checked yet.** The testing above was
+  by reading and by automated flags on recorded runs. A citation check
+  (every trial ID must be in the results) and a number check (every number
+  must be in the counted facts) are designed and are next.
+- **Competitor questions sometimes search by condition only.** In 1 of 12
+  test runs the planner listed no competitor drugs. The answer is still
+  correct (the named drug's trials are removed) but comes as one flat group.
+- **Hand-checked ground truth is in progress.** The expected-result checks
+  above are complete; checking each answer's counts and trials against the
+  registry website by hand is not finished yet.
 
-**Fungal only, despite what the planner says.** `query_config.json` has
-antifungal terms and nothing else, so oncology data doesn't exist locally
-even though the planner's prompt mentions it as in scope. This is the shape
-of a bug I already hit once: I asked about bacterial pneumonia, the planner
-reasonably read that as an anti-infective question and confidently built a
-fully validated query, and it would have returned nothing against my actual
-data. Prompt scope and pulled data are two independent sources of truth and
-nothing enforces agreement between them automatically.
+## Repository layout
 
-**Only 47 of 175 trials are summarized.** I capped the backfill to control
-token spend. Because summaries cache against the materiality hash, finishing
-it later is a one-time cost and re-runs after that are free.
-
-**Trial level, not asset level.** Drug names aren't normalized across trials,
-so the same compound under a generic and a brand name counts twice. Doing
-this properly needs an external drug ontology.
-
-**Registry fields only.** No FDA filings, patents or press releases. If
-CT.gov doesn't publish it, TrialLens doesn't know it.
-
-**No inferred milestones.** It won't tell you when a readout is expected
-unless the registry states a date. Anything shown as an estimate is labelled
-as one with its basis visible. This is enforced in `prompts.py`, and I
-verified it by feeding in a record with everything important set to null and
-checking the output named the missing fields instead of writing around them.
-
-**The change feed can't show a diff.** It tells you that a trial changed and
-when, and flags summaries that are now stale. It can't show you which field
-moved, because only the current hash is stored, not the previous one. That's
-the cost of the snapshot tables I cut.
-
-**Manual everything.** No scheduler, no server, no auth, no hosting. Every
-run is deliberate.
-
-## Stack
-
-Python, ClinicalTrials.gov API v2, SQLite, Streamlit, Anthropic Claude
-(Haiku 4.5 for query planning since it's a classification task, Sonnet for
-summaries and landscape synthesis).
+```
+app.py                  Streamlit page
+pipeline/
+  planner.py            1. plan (Claude Haiku)
+  validate.py           2. validate terms against the registry
+  retrieve.py           3. live search, drug-role labels
+  organize.py           4. group, count, rank; writes the lead sentence
+  summarize.py          5. write the paragraph (Claude Sonnet)
+  run.py                runs the five stages, returns one Answer
+  llm.py                the only Anthropic SDK code; model IDs
+  prompts.py            all prompt text
+common/
+  ctgov_client.py       the only ClinicalTrials.gov code
+  paths.py              paths built from the repo root
+tests/                  offline tests and the test-grid runner
+docs/                   design doc, test grid, setup notes
+```
