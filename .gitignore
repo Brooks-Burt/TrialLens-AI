@@ -1,19 +1,20 @@
-# Data outputs — regenerable from ingest/normalize/enrich, not source
-data/raw/*.json
-data/*.db
-data/*.sqlite
-data/*.csv
-data/*.parquet
+# Secrets
+.env
 
-# keep folder structure in git
-!data/raw/.gitkeep
+# Data: v3 stores nothing, but test-grid results and any old local data
+# must never be committed
+data/
+*.db
+*.sqlite
+*.csv
+*.parquet
 
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
-.env
 
 # OS
 .DS_Store
+*.bak
