@@ -186,14 +186,6 @@ so keep them out of git).
 
 ## How it was made
 
-**v3 replaced most of v1.** v1 downloaded a slice of the registry into
-SQLite, detected changed trials with a hash, and cached a summary per trial.
-It worked, but only for the antifungal terms I'd pulled, and the planner's
-idea of what was in scope kept drifting from what was actually in the
-database. v3 queries the live registry on demand: no download, no database,
-any therapeutic area, and that whole class of bug can't happen. v1 and v2 are
-preserved at the git tags `v1-corpus` and `v2-corpus`.
-
 **Small, testable stages.** Each stage in `pipeline/` takes and returns plain
 data, so any stage can be tested alone. `pipeline/run.py` is the only module
 that imports them all, and it never raises: every exit is a status plus a
@@ -266,3 +258,37 @@ common/
 tests/                  offline tests and the test-grid runner
 docs/                   design doc, test grid, setup notes
 ```
+
+## Earlier versions, and why I changed course
+
+TrialLens is the third version of this idea. The first two worked, and I
+replaced them anyway.
+
+**v1: download, store, summarize.** v1 downloaded 175 antifungal trials
+into a local SQLite database, flagged trials whose important fields
+had changed using a fingerprint (a hash) of those fields, and cached a
+three-part Claude summary for each trial. The question box and the
+"Claude proposes, the registry disposes" guardrail started here. Its
+weakness was the copy itself: it only knew one field, it went stale, and
+the planner kept treating questions as in scope that the downloaded data
+couldn't answer.
+
+**v2: a complete landscape for one field.** v2 tried to fix that by making
+the copy complete and smarter. It grew the antifungal download to 2,367
+trials (then widened the search to 120 terms), grouped trials of the same
+drug and company into drug programs, and added meaning-based search
+alongside keyword search, using a small text-embedding model (BGE-small).
+That search measurably added reach: on one echinocandin question, 148 of
+548 candidate trials were found only by meaning, not by keywords. A
+dashboard showed phases, sponsors, and programs for the field.
+
+**Why v3 starts over.** Every gain in v2 came from more machinery to keep
+one field's copy complete:
+term lists to tune, a database to rebuild, a 130 MB model to download. And
+every new field would need all of it again. Meanwhile ClinicalTrials.gov's
+own search already expands terms and matches by meaning. So v3 drops the
+copy entirely and asks the live registry each time: no download, no
+database, no embeddings, any field. The parts that earned their place
+carried over: the guardrail, the registry client, drug aliases and code
+names, writing down test predictions before running them, and the six v1
+bug fixes above.
