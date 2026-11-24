@@ -1,0 +1,18 @@
+# Dark theme for TrialLens. Colours here drive Streamlit's own widgets
+# (including the trial table, which is drawn on a canvas and can't be styled
+# with CSS). Everything else is styled in ui_theme.py.
+
+[theme]
+base = "dark"
+primaryColor = "#2DD4BF"
+backgroundColor = "#070B14"
+secondaryBackgroundColor = "#0F1729"
+textColor = "#E6EAF2"
+borderColor = "#1C2638"
+font = "sans-serif"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

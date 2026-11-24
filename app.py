@@ -30,6 +30,7 @@ from pipeline.retrieve import (  # noqa: E402
 )
 from pipeline.run import ANSWERED, DECLINED, FAILED, Answer, answer  # noqa: E402
 from pipeline.validate import DROPPED, KEPT, UNVERIFIED  # noqa: E402
+import ui_theme as ui  # noqa: E402
 
 # Examples span unrelated fields on purpose (domain-neutral rule).
 EXAMPLES = [
@@ -73,31 +74,45 @@ def _ask(q: str) -> None:
     st.session_state.pending = q
 
 
-st.set_page_config(page_title="TrialLens", page_icon=None, layout="centered")
+def stage_timings(a: Answer | None) -> dict | None:
+    """Which of the five steps ran for this answer, with the seconds the pipeline recorded."""
+    if a is None or a.status == FAILED:
+        return None
+    t = {k: f"{a.seconds[k]:.1f}s" for k in ("plan", "validate", "retrieve", "summarize") if k in a.seconds}
+    if a.facts is not None:
+        t["organize"] = ""  # ran, but not timed separately
+    return t
+
+
+st.set_page_config(page_title="TrialLens", page_icon=None, layout="wide")
+st.markdown(ui.CSS, unsafe_allow_html=True)
 st.session_state.setdefault("q_input", "")
 st.session_state.setdefault("pending", None)
 st.session_state.setdefault("answer", None)
 
-st.title("TrialLens")
-st.caption("Ask a question about clinical trials. TrialLens searches the live ClinicalTrials.gov registry "
-           "and writes a short answer based only on the trials it found, shown beside the trials themselves. "
-           "It covers interventional studies (trials that test a treatment), not observational ones.")
+hero_slot = st.empty()  # filled below, once we know whether a search is running
 
 with st.form("ask", border=False):
-    st.text_input("Your question", key="q_input", max_chars=MAX_QUESTION_CHARS,
-                  placeholder="e.g. What is being tested for migraine?")
-    if st.form_submit_button("Search", type="primary"):
-        st.session_state.pending = st.session_state.q_input
+    c_input, c_button = st.columns([6, 1], vertical_alignment="bottom")
+    with c_input:
+        st.text_input("Your question", key="q_input", max_chars=MAX_QUESTION_CHARS, label_visibility="collapsed",
+                      placeholder="Ask about any condition or drug, e.g. What is being tested for migraine?")
+    with c_button:
+        if st.form_submit_button("Search", type="primary", width="stretch"):
+            st.session_state.pending = st.session_state.q_input
 
-st.caption("Examples:")
-cols = st.columns(len(EXAMPLES))
-for col, ex in zip(cols, EXAMPLES):
-    col.button(ex, on_click=_ask, args=(ex,), width="stretch")
+with st.container(key="tl_examples"):
+    st.html('<div class="tl-try">Try an example</div>')
+    cols = st.columns(len(EXAMPLES))
+    for col, ex in zip(cols, EXAMPLES):
+        col.button(ex, on_click=_ask, args=(ex,), width="stretch")
 
 if st.session_state.pending is not None:
     q, st.session_state.pending = st.session_state.pending, None
-    with st.spinner("Reading the question, checking terms against the registry, searching, writing..."):
-        st.session_state.answer = answer(q)
+    hero_slot.html(ui.hero(PLANNER_MODEL, WRITER_MODEL, running=True))
+    st.session_state.answer = answer(q)
+
+hero_slot.html(ui.hero(PLANNER_MODEL, WRITER_MODEL, timings=stage_timings(st.session_state.answer)))
 
 
 # --- rendering -------------------------------------------------------------
@@ -201,6 +216,23 @@ def render_work(a: Answer) -> None:
             st.code(a.facts_text, language=None)
 
 
+CHECK_CLASS = {KEPT: "kept", DROPPED: "dropped", UNVERIFIED: "unverified"}
+KIND_LABEL = {"condition": "condition", "intervention": "drug", "alias": "code name", "exclude": "excluded"}
+
+
+def render_checks(a: Answer) -> None:
+    """The registry check, shown on the page (not only in Show your work): it is what makes the answer trustworthy."""
+    v = a.validation
+    if not v or not v.checks:
+        return
+    checks = [(c.term, KIND_LABEL.get(c.kind, c.kind), CHECK_CLASS.get(c.status, "unverified"),
+               0 if c.status == DROPPED else c.hits) for c in v.checks]
+    dropped = sum(c[2] == "dropped" for c in checks)
+    st.html(ui.section("Registry check", f"{len(checks)} terms suggested by the planner"
+                       + (f", {dropped} dropped" if dropped else "")))
+    st.html(ui.registry_checks(checks))
+
+
 def render(a: Answer) -> None:
     if a.status == FAILED:
         st.error(md(a.message) or "Something went wrong.")
@@ -209,21 +241,51 @@ def render(a: Answer) -> None:
     if a.status == DECLINED:
         st.warning(md(a.message) or "This question can't be answered from the registry.")
         if p and p.example_rephrasings:
-            st.markdown("Questions the registry can answer:")
-            for i, r in enumerate(p.example_rephrasings):
-                st.button(md(r), key=f"rephrase{i}", on_click=_ask, args=(r,))
+            st.html(ui.section("Questions the registry can answer"))
+            with st.container(key="tl_rephrase"):
+                for i, r in enumerate(p.example_rephrasings):
+                    st.button(md(r), key=f"rephrase{i}", on_click=_ask, args=(r,), width="stretch")
         return
 
     if p and p.interpretation:
-        st.markdown(f"**I read this as:** {md(p.interpretation)}")
+        st.html(ui.interpretation(p.interpretation, PLANNER_MODEL))
     if a.message:
         (st.info if a.status == ANSWERED else st.warning)(md(a.message))
 
-    if a.status == ANSWERED:
-        st.markdown(f"{a.lead} {md(a.summary.text) if a.summary else ''}")
-        st.caption(f"Written by {WRITER_MODEL} from the numbers below; Python did all counting. "
-                   "The summary is not yet automatically checked: the table is the check.")
+    render_checks(a)
+
+    if a.status == ANSWERED and a.facts:
+        f = a.facts
+        condition_only = all(g.term is None for g in f.groups)
+        items = [
+            (f"{f.total_matching:,}" if f.total_matching is not None else "?", "",
+             "matching trials in the registry (exact)", True),
+            (f"{f.registry_active:,}" if f.registry_active is not None else "?", "",
+             "of those, active or recruiting (exact)", True),
+            (f"{f.retrieved:,}", "", f"in the sample: the most relevant, at most {PER_GROUP_CAP} per drug", False),
+        ]
+        if not condition_only:
+            items.append((f"{f.core_unique:,}", "", "of the sample, test or list a searched drug", False))
+        if "total" in a.seconds:
+            items.append((f"{a.seconds['total']:.1f}", "s", "from question to answer", False))
+        st.html(ui.section("Answer"))
+        st.html(ui.metrics(items))
+        st.html('<div style="height:12px"></div>')
+        st.html(ui.answer_card(a.lead, a.summary.text if a.summary else "", WRITER_MODEL))
+
+    if a.status == ANSWERED and a.facts:
+        if a.facts.registry_phases:
+            st.html(ui.section("Matching trials by phase", "Exact registry counts; a phase 2/3 trial counts in both"))
+            st.html(ui.phase_rows(a.facts.registry_phases, a.facts.total_matching))
+        elif len(a.facts.phase_counts) > 1:  # one phase only (e.g. a phase 3 search): a bar adds nothing
+            st.html(ui.section("Sample by highest phase",
+                               f"{sum(a.facts.phase_counts.values())} trials in the sample"
+                               + ("" if condition_only else " that test or list a searched drug")))
+            st.html(ui.phase_bar(a.facts.phase_counts))
+        st.html(ui.section("Trials", "Each ID opens the registry record"))
         render_table(a)
+
+    st.html('<div style="height:18px"></div>')
     render_work(a)
 
 
@@ -234,6 +296,4 @@ if st.session_state.answer is not None:
         traceback.print_exc()
         st.error("Something went wrong while showing this answer. The details are in the server log.")
 
-st.divider()
-st.caption("Data: ClinicalTrials.gov API v2, queried live for every question; nothing is stored. "
-           f"Planner: {PLANNER_MODEL}. Writer: {WRITER_MODEL}.")
+st.html(ui.footer(PLANNER_MODEL, WRITER_MODEL))
