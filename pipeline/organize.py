@@ -109,6 +109,10 @@ class Facts:
     phase_counts: dict[str, int] = field(default_factory=dict)   # unique core trials by highest phase
     status_counts: dict[str, int] = field(default_factory=dict)  # unique core trials by status
     sponsor_class_counts: dict[str, int] = field(default_factory=dict)  # unique core trials by sponsor type
+    # Exact registry counts for the WHOLE search, not the sample. Filled in by
+    # run.py from count-only calls; None = the call failed (shown as unknown).
+    registry_active: int | None = None
+    registry_phases: dict[str, int | None] = field(default_factory=dict)  # a phase 2/3 trial counts under both
 
 
 def organize(groups: list[TrialGroup], total_matching: int | None,
@@ -214,9 +218,16 @@ def render_facts(interpretation: str, f: Facts, exclude_terms: list[str]) -> str
         f"SCOPE: interventional studies only (trials that test an intervention); observational studies are not searched.",
         f"TOTALS: {f.total_matching if f.total_matching is not None else 'unknown'} trials match the search in the registry; "
         f"{f.retrieved} were retrieved (at most 25 per drug); {f.core_unique} of those test or list one of the searched drugs.",
-        f"ACTIVE: {f.active_unique} of those {f.core_unique} are active (recruiting, not yet recruiting, "
-        "active but not recruiting, or enrolling by invitation).",
     ]
+    if f.registry_active is not None:
+        lines.append(f"REGISTRY-WIDE ACTIVE: {f.registry_active} of the {f.total_matching if f.total_matching is not None else 'unknown number of'} "
+                     "matching trials are active (exact registry count for the whole search, not the sample).")
+    known_phases = {k: v for k, v in f.registry_phases.items() if v is not None}
+    if known_phases:
+        lines.append("REGISTRY-WIDE BY PHASE (exact registry counts for the whole search; a trial registered under "
+                     "two phases is counted under both): " + "; ".join(f"{k}: {v}" for k, v in known_phases.items()))
+    lines.append(f"ACTIVE IN SAMPLE: {f.active_unique} of the {f.core_unique} sample trials that test or list a searched drug "
+                 "are active (recruiting, not yet recruiting, active but not recruiting, or enrolling by invitation).")
     searched = [g for g in f.groups if g.term]
     if searched:
         with_trials = [g.term for g in searched if g.core]
@@ -226,9 +237,9 @@ def render_facts(interpretation: str, f: Facts, exclude_terms: list[str]) -> str
         lines.append(f"EXCLUDED:trials testing {', '.join(exclude_terms)} were removed (the user asked for alternatives); "
                      f"{sum(g.excluded for g in f.groups)} removed in total.")
     if f.phase_counts:
-        lines.append("BY HIGHEST PHASE: " + "; ".join(f"{k}: {v}" for k, v in f.phase_counts.items()))
+        lines.append("SAMPLE BY HIGHEST PHASE: " + "; ".join(f"{k}: {v}" for k, v in f.phase_counts.items()))
     if f.status_counts:
-        lines.append("BY STATUS: " + "; ".join(f"{k}: {v}" for k, v in f.status_counts.items()))
+        lines.append("SAMPLE BY STATUS: " + "; ".join(f"{k}: {v}" for k, v in f.status_counts.items()))
     if f.sponsor_class_counts:
         lines.append("BY LEAD SPONSOR TYPE: " + "; ".join(f"{k}: {v}" for k, v in f.sponsor_class_counts.items()))
     lines.append("")

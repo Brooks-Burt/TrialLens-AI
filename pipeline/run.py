@@ -17,11 +17,12 @@ from __future__ import annotations
 import sys
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pipeline.organize import Facts, breadth_note, lead_sentence, organize, render_facts  # noqa: E402
+from pipeline.organize import ACTIVE, Facts, breadth_note, lead_sentence, organize, render_facts  # noqa: E402
 from pipeline.planner import ERROR, PLAN, Plan, plan_question  # noqa: E402
 from pipeline.retrieve import TrialGroup, count_matching, retrieve  # noqa: E402
 from pipeline.summarize import Summary, summarize  # noqa: E402
@@ -56,6 +57,32 @@ def _tokens(a: Answer) -> dict:
     keys = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"]
     calls["total"] = {k: sum(c.get(k, 0) for c in calls.values()) for k in keys}
     return calls
+
+
+BREAKDOWN_PHASES = ["EARLY_PHASE1", "PHASE1", "PHASE2", "PHASE3", "PHASE4"]
+
+
+def registry_breakdown(conditions: list[str], names: list[str], phases: list[str], statuses: list[str],
+                       count=count_matching) -> tuple[int | None, dict[str, int | None]]:
+    """
+    Exact registry counts for the whole search, not the sample: how many are
+    active, and how many are registered under each phase. Count-only calls,
+    run in parallel; no trial records are downloaded, so a search matching
+    thousands of trials costs the same as one matching ten.
+
+    Active = the four statuses in organize.ACTIVE. If the question already
+    filters by status, active is the overlap (0 without a call if none, e.g.
+    "completed trials"). The phase split is skipped when the search is
+    already limited to one phase. A failed call gives None, never 0.
+    """
+    active_statuses = [s for s in statuses if s in ACTIVE] if statuses else sorted(ACTIVE)
+    split = [p for p in (phases or BREAKDOWN_PHASES)] if len(phases) != 1 else []
+    jobs = ([("active", phases, active_statuses)] if active_statuses else []) + [(p, [p], statuses) for p in split]
+    with ThreadPoolExecutor(8) as pool:
+        results = list(pool.map(lambda j: count(conditions, names, j[1], j[2])[0], jobs))
+    counts = dict(zip([j[0] for j in jobs], results))
+    active = counts.pop("active") if active_statuses else 0
+    return active, counts
 
 
 def answer(question: str) -> Answer:
@@ -94,6 +121,7 @@ def _answer(question: str) -> Answer:
                         plan.exclude_terms, aliases=v.interventions)
     all_names = [n for term, aliases in v.interventions.items() for n in [term, *aliases]]
     total, a.total_query = count_matching(v.conditions, all_names, plan.phases, plan.statuses)
+    reg_active, reg_phases = registry_breakdown(v.conditions, all_names, plan.phases, plan.statuses)
     a.seconds["retrieve"] = round(time.monotonic() - t, 1)
     if all(g.error for g in a.groups):
         a.status = STOPPED
@@ -102,6 +130,7 @@ def _answer(question: str) -> Answer:
         return a
 
     a.facts = organize(a.groups, total)
+    a.facts.registry_active, a.facts.registry_phases = reg_active, reg_phases
     a.lead = lead_sentence(a.facts)
     if a.facts.retrieved == 0:
         a.status = NO_TRIALS
